@@ -16,9 +16,14 @@
         },
     )
 """
-__version__ = "0.1.4"
+__version__ = "0.2.0"
 
+from decision_jef import email
 from decision_jef.infer import Decider
+from decision_jef.shortlist import (DEFAULT_K, narrow, rank_options,
+                                    shortlist_decide)
 from decision_jef.wire import Answer, Question, Request
 
-__all__ = ["Decider", "Question", "Request", "Answer", "__version__"]
+__all__ = ["Decider", "Question", "Request", "Answer", "email",
+           "shortlist_decide", "rank_options", "narrow", "DEFAULT_K",
+           "__version__"]

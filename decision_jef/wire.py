@@ -121,6 +121,9 @@ class Answer:
     score: Optional[float] = None
     legend: Optional[Dict[str, str]] = None
     confidence: Optional[float] = None
+    # Present only when decide(with_escalation=True): the model's own estimate
+    # that this answer is wrong, the cost-derived threshold, and the verdict.
+    escalation: Optional[Dict[str, object]] = None
 
     @classmethod
     def from_json(cls, d: dict) -> "Answer":

@@ -122,6 +122,46 @@ def main() -> int:
         for d in q.descriptions + s.descriptions + n.descriptions:
             assert d != "None", "str(None) leaked through as an option label"
 
+    @check("every optional head is inferred from the weights")
+    def _():
+        # A checkpoint written before a head existed must still load. The flags
+        # are read off the state_dict, so this list has to stay in step with
+        # the heads the model defines.
+        import inspect
+
+        from decision_jef.infer import Decider as _D
+        from decision_jef.model import DecisionJef
+
+        params = inspect.signature(DecisionJef.__init__).parameters
+        heads = {n for n in params if n.endswith("_head")}
+        src = inspect.getsource(_D.from_pretrained)
+        for h in heads:
+            assert f'"{h}"' in src, f"{h} is not inferred in from_pretrained"
+
+    @check("email cleaning cuts the thread, the signature and the disclaimer")
+    def _():
+        from decision_jef import email
+        raw = ("Please refund the duplicate.\n\n"
+               "On Tue, 3 Jun 2025 at 14:02, S <a@b.com> wrote:\n"
+               "> earlier text\n\n--\nDana\n\n"
+               "This e-mail is confidential and intended solely for you.")
+        assert email.clean(raw) == "Please refund the duplicate.", email.clean(raw)
+        st = email.as_state("a@b.com", "Charge", raw)
+        assert st.startswith("from: a@b.com") and "confidential" not in st
+
+    @check("shortlisting keeps a lexically obvious label and passes small sets through")
+    def _():
+        from decision_jef.shortlist import rank_options
+        labels = {f"i{n}": f"outcome number {n}" for n in range(40)}
+        labels["billing_refund"] = "the customer wants a duplicate charge refunded"
+        q = Question("choice", "What do they want?", labels)
+        kept, scores = rank_options(None, "refund the duplicate charge", q, 5)
+        assert kept[0] == "billing_refund", kept[:3]
+        assert scores is not None and len(kept) == 5
+        small = Question("choice", "x?", {"a": "A", "b": "B"})
+        kept2, scores2 = rank_options(None, "anything", small, 5)
+        assert kept2 == ["a", "b"] and scores2 is None
+
     @check("temperature buckets are stable")
     def _():
         assert temperature_bucket("noul", 2) == "noul"
@@ -154,7 +194,12 @@ def main() -> int:
         try:
             Decider.from_pretrained(str(ROOT / "no-such-dir"))
         except FileNotFoundError as exc:
-            assert "model.pt" in str(exc) and "hf auth login" in str(exc)
+            msg = str(exc)
+            # The message has to name the file the loader actually looks for.
+            # It said model.pt for a version after the format changed, and this
+            # check passed the whole time because it asserted the old name.
+            assert "model.safetensors" in msg, msg
+            assert "hf auth login" in msg, msg
         else:
             raise AssertionError("expected FileNotFoundError")
 

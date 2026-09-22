@@ -36,7 +36,7 @@ class DecisionJef(nn.Module):
     def __init__(self, model_name: str = "jhu-clsp/mmBERT-base",
                  proj_dim: int = 256, dropout: float = 0.0,
                  trainable_layers: int = -1, isolate_questions: bool = True,
-                 noul_head: bool = True, pretrained: bool = False,
+                 noul_head: bool = True, act_head: bool = True, pretrained: bool = False,
                  encoder_config: Optional[dict] = None):
         super().__init__()
         if encoder_config is not None:
@@ -70,6 +70,14 @@ class DecisionJef(nn.Module):
         self.noul_head = nn.Sequential(
             nn.LayerNorm(d), nn.Linear(d, d), nn.GELU(), nn.Linear(d, 2)
         ) if noul_head else None
+        # Answer, or hand this decision to a person. Cost-sensitive, because
+        # the two mistakes are not equal: escalating a case the model would
+        # have got right wastes a person's time, and answering one it gets
+        # wrong is the expensive failure. Read off [DEC] like the rest.
+        self.act_head = nn.Sequential(
+            nn.LayerNorm(d), nn.Linear(d, d // 4), nn.GELU(),
+            nn.Linear(d // 4, 1)
+        ) if act_head else None
         self.model_name = model_name
         self.proj_dim = proj_dim
         self.use_noul_head = noul_head
@@ -125,7 +133,21 @@ class DecisionJef(nn.Module):
         band = (idx.unsqueeze(1) - idx.unsqueeze(0)).abs() <= half
         return band.unsqueeze(0).unsqueeze(0)
 
-    def forward(self, batch: Packed, restrict: bool = True) -> torch.Tensor:
+    def escalate_logit(self, batch: Packed) -> Optional[torch.Tensor]:
+        """One logit per question: how much this decision wants a person.
+
+        Separate from forward() so the answer path costs nothing when a caller
+        does not ask for it.
+        """
+        if self.act_head is None:
+            return None
+        hidden = self.encoder.embeddings(input_ids=batch.input_ids)
+        h = self.encoder(input_ids=batch.input_ids,
+                         attention_mask=self._masks(batch, hidden)).last_hidden_state
+        return self.act_head(h[batch.batch_idx, batch.dec_pos]).squeeze(-1)
+
+    def forward(self, batch: Packed, restrict: bool = True,
+                with_escalation: bool = False):
         hidden = self.encoder.embeddings(input_ids=batch.input_ids)
         h = self.encoder(input_ids=batch.input_ids,
                          attention_mask=self._masks(batch, hidden)).last_hidden_state
@@ -155,6 +177,9 @@ class DecisionJef(nn.Module):
 
         if restrict:
             logits = logits.masked_fill(~batch.opt_mask, -1e4)
+        if with_escalation and self.act_head is not None:
+            # h is already computed, so this reuses the same pass.
+            return logits, self.act_head(q).squeeze(-1)
         return logits
 
     def trainable_parameters(self) -> int:
