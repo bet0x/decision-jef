@@ -36,11 +36,25 @@ class DecisionJef(nn.Module):
     def __init__(self, model_name: str = "jhu-clsp/mmBERT-base",
                  proj_dim: int = 256, dropout: float = 0.0,
                  trainable_layers: int = -1, isolate_questions: bool = True,
-                 noul_head: bool = True):
+                 noul_head: bool = True, pretrained: bool = False,
+                 encoder_config: Optional[dict] = None):
         super().__init__()
-        cfg = AutoConfig.from_pretrained(model_name)
+        if encoder_config is not None:
+            # Carried in the checkpoint, so loading touches no other
+            # repository and prints no warning about unauthenticated requests.
+            cfg = AutoConfig.for_model(**encoder_config)
+        else:
+            cfg = AutoConfig.from_pretrained(model_name)
         cfg.attention_dropout = dropout
-        self.encoder = AutoModel.from_pretrained(model_name, config=cfg)
+        if pretrained:
+            self.encoder = AutoModel.from_pretrained(model_name, config=cfg)
+        else:
+            # Inference replaces every weight from the checkpoint a moment
+            # later, so fetching the backbone first downloads a gigabyte to
+            # throw away -- and prints a load report about the MLM head this
+            # model does not have. Build the architecture from the config and
+            # let load_state_dict fill it.
+            self.encoder = AutoModel.from_config(cfg)
         self.config = self.encoder.config
         d = self.config.hidden_size
         self.isolate_questions = isolate_questions

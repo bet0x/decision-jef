@@ -62,9 +62,15 @@ class Decider:
         # trusting a default that may have changed.
         if "noul_head" not in cfg:
             cfg["noul_head"] = any(k.startswith("noul_head.") for k in ck["model"])
-        model = DecisionJef(**cfg).to(dev)
+        model = DecisionJef(**cfg, pretrained=False,
+                            encoder_config=ck.get("encoder_config")).to(dev)
         model.load_state_dict(ck["model"])
-        tok = AutoTokenizer.from_pretrained(cfg["model_name"])
+        # Prefer a tokenizer vendored beside the weights, so a load needs no
+        # second repository and no network call once the model is cached.
+        try:
+            tok = AutoTokenizer.from_pretrained(repo_or_path)
+        except Exception:
+            tok = AutoTokenizer.from_pretrained(cfg["model_name"])
         temps = ck.get("temperatures") or {}
         tf = grab("temperatures.json")
         if not temps and tf:
