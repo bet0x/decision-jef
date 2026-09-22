@@ -4,8 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "decision-jef"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Typed decisions with calibrated probabilities, in one forward pass"
+# README.md is the clean one. HF_CARD.md carries the model-card
+# frontmatter and is uploaded to the Hub as its README.
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
 license = "MIT"
@@ -41,6 +43,11 @@ dev = ["pytest>=8"]
 Homepage = "https://huggingface.co/BarraHome/Decision-Jef-0.1"
 Model = "https://huggingface.co/BarraHome/Decision-Jef-0.1"
 Issues = "https://huggingface.co/BarraHome/Decision-Jef-0.1/discussions"
+
+[tool.setuptools.dynamic]
+# One source of truth. A version in two files drifts, and the tag check
+# in the publish workflow would then pass against the wrong one.
+version = { attr = "decision_jef.__version__" }
 
 [tool.setuptools]
 packages = ["decision_jef"]

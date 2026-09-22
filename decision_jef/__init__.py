@@ -16,7 +16,9 @@
         },
     )
 """
+__version__ = "0.1.1"
+
 from decision_jef.infer import Decider
 from decision_jef.wire import Answer, Question, Request
 
-__all__ = ["Decider", "Question", "Request", "Answer"]
+__all__ = ["Decider", "Question", "Request", "Answer", "__version__"]

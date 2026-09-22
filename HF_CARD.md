@@ -1,3 +1,24 @@
+---
+license: mit
+base_model: jhu-clsp/mmBERT-base
+base_model_relation: finetune
+pipeline_tag: text-classification
+inference: false
+language:
+  - multilingual
+tags:
+  - system-one
+  - calibrated-decisions
+  - typed-decisions
+  - classification
+  - routing
+  - scoring
+  - guardrails
+  - moderation
+  - multilingual
+  - commercial-use
+---
+
 # Decision-Jef-0.1
 
 Answer several runtime-defined questions about one state, in a single forward
