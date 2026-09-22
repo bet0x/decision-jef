@@ -55,10 +55,20 @@ with `choice` and `noul` within a third of a point and the gap concentrated in
 
 | | value |
 | --- | --- |
-| NLL, choice / noul / score | 0.7200 / 0.4043 / 0.7316 |
+| soft accuracy | 0.606 |
 | ECE, 10 bins, calibrated | **0.060** |
 | ECE, 10 bins, uncalibrated | 0.138 |
-| mean confidence, calibrated | 0.827 |
+| Brier, averaged per class | 0.044 |
+| Brier, summed over classes | 0.153 |
+| score MAE | 0.301 |
+| NLL, choice / noul / score | 0.7200 / 0.4043 / 0.7316 |
+| majority class on this set | 0.457 |
+| random guess on this set | 0.318 |
+
+Soft accuracy is the label mass on the answer we pick, which matters on a
+benchmark whose labels are annotator averages rather than single verdicts.
+Brier is reported both ways because published figures use both conventions and
+they differ by roughly the option count.
 
 Temperature scaling per (type, cardinality) bucket ships with the model and is
 applied by default, taking ECE from 0.138 to **0.060**. It never changes an
@@ -176,7 +186,14 @@ state and to itself only; the state attends to neither.
   benchmark has been run — treat multilingual use as untested.
 - The `guardrails` and `moderation` tags reflect coverage of toxicity and
   hate-speech decisions. **Neither capability has been benchmarked.**
-- Sensitive to option order, as above.
+- **Option order changes the answer on 19.3% of choice questions.** Measured
+  over 1,800 permutations of the benchmark. Fix the order you present options
+  in, or average over permutations if you need stability.
+- **Keep choice questions at ten options or fewer.** Training never showed more
+  than ten, so beyond that the model is extrapolating: measured zero-shot it
+  holds about 1.9x random up to twenty options and falls toward chance at forty.
+  Nothing is truncated — the packer fits eighty options in 898 tokens — so this
+  is a coverage limit, not a budget one.
 - Long states are truncated to the window with the questions reserved first.
 
 ## License and provenance

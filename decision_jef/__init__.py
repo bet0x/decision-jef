@@ -16,7 +16,7 @@
         },
     )
 """
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 from decision_jef.infer import Decider
 from decision_jef.wire import Answer, Question, Request

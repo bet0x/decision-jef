@@ -21,6 +21,15 @@ MAX_SCORE_LEVELS = 10
 MIN_SCORE_LEVELS = 2
 
 
+def _text(value) -> str:
+    """Option text, or "" when there is none.
+
+    str(None) is "None", which is truthy, so a plain `str(v).strip() or key`
+    silently labels an option "None" instead of falling back to its key.
+    """
+    return "" if value is None else str(value).strip()
+
+
 @dataclass
 class Question:
     kind: str
@@ -65,12 +74,17 @@ class Question:
         """Option text in the same order as `keys`. A noul question has no
         option text at all -- its two outcomes are implicit."""
         if self.kind == "choice":
-            return list(self.criteria.values())
+            # A description of None or "" is a legitimate wire form: the key is
+            # the label and needs no gloss. Fall back to the key rather than
+            # handing the tokenizer nothing, which raises "You need to specify
+            # either `text` or `text_target`".
+            return [_text(v) or str(k) for k, v in self.criteria.items()]
         if self.kind == "score":
-            return list(self.criteria)
+            return [_text(v) or f"level {i}"
+                    for i, v in enumerate(self.criteria)]
         if self.criteria:
             low = {k.lower(): v for k, v in self.criteria.items()}
-            return [low["false"], low["true"]]
+            return [_text(low["false"]) or "no", _text(low["true"]) or "yes"]
         return ["no", "yes"]
 
 

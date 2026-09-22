@@ -108,6 +108,20 @@ def main() -> int:
                 continue
             raise AssertionError(f"case {i} should have raised ValueError")
 
+    @check("an option with no description falls back to its key")
+    def _():
+        # A real crash: a choice whose criteria values are all null reached the
+        # tokenizer as None and raised "You need to specify either `text` or
+        # `text_target`". The key is the label in that form.
+        q = Question("choice", "What is it?", {"coding": None, "other": ""})
+        assert q.descriptions == ["coding", "other"], q.descriptions
+        s = Question("score", "How bad?", [None, "", "severe"])
+        assert s.descriptions == ["level 0", "level 1", "severe"], s.descriptions
+        n = Question("noul", "Urgent?", {"false": None, "true": ""})
+        assert n.descriptions == ["no", "yes"], n.descriptions
+        for d in q.descriptions + s.descriptions + n.descriptions:
+            assert d != "None", "str(None) leaked through as an option label"
+
     @check("temperature buckets are stable")
     def _():
         assert temperature_bucket("noul", 2) == "noul"
