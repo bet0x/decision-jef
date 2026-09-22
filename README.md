@@ -82,6 +82,10 @@ decision.
 pip install decision-jef
 ```
 
+The weights are published separately from the package. Authenticate with
+`hf auth login` if the model repository is not yet public, or point
+`from_pretrained` at a local directory holding `model.pt`.
+
 ```python
 from decision_jef import Decider, Question
 

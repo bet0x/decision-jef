@@ -17,6 +17,10 @@ from decision_jef.model import DecisionJef
 from decision_jef.pack import pack
 from decision_jef.wire import Answer, Question, Request
 
+# Two decimal places is what a reported probability is worth here, so a
+# floor well below that costs no information and avoids claiming certainty.
+PROB_FLOOR = 1e-4
+
 
 class Decider:
     def __init__(self, model: DecisionJef, tokenizer, temperatures=None,
@@ -43,7 +47,12 @@ class Decider:
 
         weights = grab("model.pt")
         if weights is None:
-            raise FileNotFoundError("model.pt not found in " + repo_or_path)
+            raise FileNotFoundError(
+                f"No model.pt in {repo_or_path!r}.\n"
+                "The weights are published separately from this package. If the "
+                "repository is private or gated, authenticate first with "
+                "`hf auth login`, or pass a local directory containing model.pt.\n"
+                "See https://huggingface.co/BarraHome/Decision-Jef-0.1")
         if device == "auto":
             device = "cuda" if torch.cuda.is_available() else "cpu"
         dev = torch.device(device)
@@ -85,6 +94,13 @@ class Decider:
             if calibrated:
                 row = row / self._temp(kind, int(counts[i]))
             p = torch.softmax(row[: len(keys)], -1).cpu().tolist()
+            # Never report certainty. Sharpening temperatures (around 0.34
+            # here) can drive a confident logit gap to a rounded 1.0, and a
+            # probability of exactly 1 claims the answer cannot be wrong.
+            # Clamp and renormalise so the distribution still sums to 1.
+            p = [min(max(v, PROB_FLOOR), 1.0 - PROB_FLOOR) for v in p]
+            total = sum(p)
+            p = [v / total for v in p]
             d = {k: round(float(v), 4) for k, v in zip(keys, p)}
             best = max(d, key=d.get)
             out[qid] = Answer(
