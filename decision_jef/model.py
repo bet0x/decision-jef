@@ -1,0 +1,161 @@
+"""Decision-Jef.
+
+    h      = encoder(state + question blocks)
+    query  = q_proj(h[DEC])        one per question
+    keys   = o_proj(h[OPT_i])      one per option, in order
+    logits = <query, key_i> * scale
+
+The query is read after the whole option list, so the decision sees every
+option. The keys come from the same pass, so the options are read together
+rather than scored in isolation.
+
+The answer space is exactly the options supplied at call time. There is no
+classification head over a fixed label set, so a value you did not offer is
+not representable.
+"""
+
+from __future__ import annotations
+
+from typing import Dict, Optional
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from transformers import AutoConfig, AutoModel
+from transformers.models.modernbert.modeling_modernbert import (
+    create_bidirectional_mask,
+    create_bidirectional_sliding_window_mask,
+)
+
+from decision_jef.pack import Packed, segment_attention_mask
+
+KINDS = ("choice", "noul", "score")
+
+
+class DecisionJef(nn.Module):
+    def __init__(self, model_name: str = "jhu-clsp/mmBERT-base",
+                 proj_dim: int = 256, dropout: float = 0.0,
+                 trainable_layers: int = -1, isolate_questions: bool = True,
+                 noul_head: bool = True):
+        super().__init__()
+        cfg = AutoConfig.from_pretrained(model_name)
+        cfg.attention_dropout = dropout
+        self.encoder = AutoModel.from_pretrained(model_name, config=cfg)
+        self.config = self.encoder.config
+        d = self.config.hidden_size
+        self.isolate_questions = isolate_questions
+
+        # Separate projections for the question and the option side.
+        self.q_proj = nn.Sequential(nn.LayerNorm(d), nn.Linear(d, proj_dim))
+        self.o_proj = nn.Sequential(nn.LayerNorm(d), nn.Linear(d, proj_dim))
+        # Learned temperature on normalised vectors.
+        self.logit_scale = nn.Parameter(torch.tensor(2.996))
+        # A yes/no question's two options are restatements of its
+        # instructions, so its two logits are read straight off [DEC].
+        # The outcome space is still exactly two.
+        self.noul_head = nn.Sequential(
+            nn.LayerNorm(d), nn.Linear(d, d), nn.GELU(), nn.Linear(d, 2)
+        ) if noul_head else None
+        self.model_name = model_name
+        self.proj_dim = proj_dim
+        self.use_noul_head = noul_head
+        self.set_trainable(trainable_layers)
+
+    def set_trainable(self, n: int):
+        """n < 0 unfreezes the whole encoder; n >= 0 keeps the top n layers."""
+        if n < 0:
+            for p in self.encoder.parameters():
+                p.requires_grad_(True)
+            return
+        for p in self.encoder.parameters():
+            p.requires_grad_(False)
+        for layer in list(self.encoder.layers)[len(self.encoder.layers) - n:]:
+            for p in layer.parameters():
+                p.requires_grad_(True)
+        if hasattr(self.encoder, "final_norm"):
+            for p in self.encoder.final_norm.parameters():
+                p.requires_grad_(True)
+
+    def _masks(self, batch: Packed, hidden) -> Dict[str, torch.Tensor]:
+        """The encoder's own masks, restricted to the per-question segments."""
+        kw = dict(config=self.config, inputs_embeds=hidden,
+                  attention_mask=batch.attention_mask)
+        masks = {"full_attention": create_bidirectional_mask(**kw),
+                 "sliding_attention": create_bidirectional_sliding_window_mask(**kw)}
+        if not self.isolate_questions:
+            return masks
+
+        allowed = segment_attention_mask(batch.segment_ids, batch.attention_mask)
+        out = {}
+        for name, m in masks.items():
+            if m is None:
+                # The constructors return None when a batch has no padding,
+                # so build the mask here.
+                base = allowed.clone()
+                if name == "sliding_attention":
+                    base = base & self._window(batch)
+                out[name] = base
+            elif m.dtype == torch.bool:
+                out[name] = m & allowed
+            else:
+                # Finite large negative, not -inf: a fully masked row with
+                # -inf yields NaN.
+                out[name] = m.masked_fill(~allowed, -1e4)
+        return out
+
+    def _window(self, batch: Packed) -> torch.Tensor:
+        """The local-attention band the sliding layers use, [1, 1, L, L] bool."""
+        L = batch.input_ids.shape[1]
+        half = self.config.local_attention // 2
+        idx = torch.arange(L, device=batch.input_ids.device)
+        band = (idx.unsqueeze(1) - idx.unsqueeze(0)).abs() <= half
+        return band.unsqueeze(0).unsqueeze(0)
+
+    def forward(self, batch: Packed, restrict: bool = True) -> torch.Tensor:
+        hidden = self.encoder.embeddings(input_ids=batch.input_ids)
+        h = self.encoder(input_ids=batch.input_ids,
+                         attention_mask=self._masks(batch, hidden)).last_hidden_state
+
+        flat = batch.batch_idx
+        q = h[flat, batch.dec_pos]                                  # [Nq, D]
+        qv = F.normalize(self.q_proj(q), dim=-1)
+
+        Nq, mo = batch.opt_pos.shape
+        rows = flat.unsqueeze(1).expand(Nq, mo)
+        o = h[rows.reshape(-1), batch.opt_pos.reshape(-1)]          # [Nq*mo, D]
+        ov = F.normalize(self.o_proj(o), dim=-1).view(Nq, mo, -1)
+
+        logits = (qv.unsqueeze(1) * ov).sum(-1) * self.logit_scale.exp()
+
+        if self.noul_head is not None and batch.kinds:
+            is_noul = torch.tensor([k == "noul" for k in batch.kinds],
+                                   device=logits.device)
+            if bool(is_noul.any()):
+                direct = self.noul_head(q)                      # [Nq, 2]
+                pad = logits.shape[1] - 2
+                if pad > 0:
+                    direct = torch.cat(
+                        [direct, direct.new_full((direct.shape[0], pad), -1e4)], 1)
+                logits = torch.where(is_noul.unsqueeze(1), direct[:, : logits.shape[1]],
+                                     logits)
+
+        if restrict:
+            logits = logits.masked_fill(~batch.opt_mask, -1e4)
+        return logits
+
+    def trainable_parameters(self) -> int:
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+
+def temperature_bucket(kind: str, n_options: int) -> str:
+    """Which temperature applies to a question of this type and size."""
+    if kind == "noul":
+        return "noul"
+    if kind == "score":
+        return f"score:{n_options}"
+
+    if n_options <= 3:
+        return "choice:2-3"
+    if n_options <= 6:
+        return "choice:4-6"
+    return "choice:7+"

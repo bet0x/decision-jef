@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "decision-jef"
+version = "0.1.0"
+description = "Typed decisions with calibrated probabilities, in one forward pass"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = [
+    "typed-decisions", "calibration", "classification", "routing",
+    "scoring", "encoder", "multilingual", "nlp",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Text Processing :: Linguistic",
+    "Typing :: Typed",
+]
+dependencies = [
+    "torch>=2.4",
+    "transformers>=4.48",
+    "huggingface-hub>=0.26",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.urls]
+Homepage = "https://huggingface.co/BarraHome/Decision-Jef-0.1"
+Model = "https://huggingface.co/BarraHome/Decision-Jef-0.1"
+Issues = "https://huggingface.co/BarraHome/Decision-Jef-0.1/discussions"
+
+[tool.setuptools]
+packages = ["decision_jef"]
+
+[tool.setuptools.package-data]
+decision_jef = ["py.typed"]

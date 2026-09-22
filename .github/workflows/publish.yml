@@ -1,0 +1,53 @@
+name: Publish to PyPI
+
+# Trusted Publishing: PyPI verifies this workflow's OIDC identity, so there is
+# no API token to create, store or rotate. Configure the publisher once at
+# pypi.org/manage/account/publishing/ with owner, repository, this filename
+# and the environment below.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          python -m twine check dist/*
+      - name: Fail if the tag does not match the version
+        if: github.event_name == 'release'
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          test "$tag" = "$version" || {
+            echo "tag $tag does not match pyproject version $version" >&2
+            exit 1
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi          # name this in the PyPI publisher config
+    permissions:
+      id-token: write          # required for Trusted Publishing; nothing else
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
