@@ -19,6 +19,14 @@ tags:
   - commercial-use
 ---
 
+<p align="center">
+  <a href="https://pypi.org/project/decision-jef/"><img src="https://img.shields.io/pypi/v/decision-jef?logo=pypi&logoColor=white" alt="PyPI version"></a>
+  <a href="https://github.com/bet0x/decision-jef"><img src="https://img.shields.io/badge/GitHub-decision--jef-181717?logo=github" alt="Source on GitHub"></a>
+  <img src="https://img.shields.io/badge/typed--decisions-77.00-1f6feb" alt="77.00 on the typed-decisions benchmark">
+  <img src="https://img.shields.io/badge/latency-12.12%20ms%20%C2%B7%204%20decisions-2da44e" alt="12.12 ms for four decisions">
+  <img src="https://img.shields.io/badge/ECE-0.060-2da44e" alt="Expected calibration error 0.060">
+</p>
+
 # Decision-Jef-0.1
 
 Answer several runtime-defined questions about one state, in a single forward

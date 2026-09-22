@@ -1,3 +1,20 @@
+<div align="center">
+  <p>
+    <a href="https://pypi.org/project/decision-jef/"><img src="https://img.shields.io/pypi/v/decision-jef?logo=pypi&logoColor=white" alt="PyPI version"></a>
+    <a href="https://pypi.org/project/decision-jef/"><img src="https://img.shields.io/pypi/pyversions/decision-jef?logo=python&logoColor=white" alt="Supported Python versions"></a>
+    <a href="https://github.com/bet0x/decision-jef/actions/workflows/ci.yml"><img src="https://github.com/bet0x/decision-jef/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+    <a href="https://huggingface.co/BarraHome/Decision-Jef-0.1"><img src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Decision--Jef--0.1-yellow" alt="Model on Hugging Face"></a>
+    <a href="./LICENSE"><img src="https://img.shields.io/github/license/bet0x/decision-jef" alt="MIT License"></a>
+    <a href="https://github.com/bet0x/decision-jef"><img src="https://img.shields.io/github/stars/bet0x/decision-jef?style=flat&logo=github" alt="GitHub stars"></a>
+  </p>
+  <p>
+    <img src="https://img.shields.io/badge/typed--decisions-77.00-1f6feb" alt="77.00 on the typed-decisions benchmark">
+    <img src="https://img.shields.io/badge/latency-12.12%20ms%20%C2%B7%204%20decisions-2da44e" alt="12.12 ms for four decisions">
+    <img src="https://img.shields.io/badge/ECE-0.060-2da44e" alt="Expected calibration error 0.060">
+    <img src="https://img.shields.io/badge/parameters-307M-8250df" alt="307 million parameters">
+  </p>
+</div>
+
 # Decision-Jef-0.1
 
 Answer several runtime-defined questions about one state, in a single forward
