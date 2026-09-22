@@ -51,28 +51,25 @@ jobs:
       - id: version
         name: Read the version from the package
         run: |
-          version=$(python -c \
-            "import re,pathlib;\
-             print(re.search(r'__version__ = \"([^\"]+)\"', \
-             pathlib.Path('decision_jef/__init__.py').read_text()).group(1))")
+          version=$(python scripts/version.py)
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "package version: $version"
       - name: Refuse a tag that disagrees with the version
         if: github.event_name == 'release'
         run: |
           tag="${GITHUB_REF_NAME#v}"
-          test "$tag" = "${{ steps.version.outputs.version }}" || {
-            echo "::error::release tag $tag does not match package version \
-${{ steps.version.outputs.version }}" >&2
+          version="${{ steps.version.outputs.version }}"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::release tag $tag does not match package version $version"
             exit 1
-          }
+          fi
       - name: Refuse a version already on PyPI
         run: |
           v="${{ steps.version.outputs.version }}"
-          code=$(curl -sS -o /dev/null -w "%{http_code}" \
-            "https://pypi.org/pypi/decision-jef/$v/json")
+          url="https://pypi.org/pypi/decision-jef/$v/json"
+          code=$(curl -sS -o /dev/null -w "%{http_code}" "$url")
           if [ "$code" = "200" ]; then
-            echo "::error::decision-jef $v is already published; bump the version" >&2
+            echo "::error::decision-jef $v is already published; bump the version"
             exit 1
           fi
       - name: Build

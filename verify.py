@@ -60,14 +60,16 @@ def main() -> int:
         assert first != "---", \
             "README.md starts with frontmatter; PyPI renders it as text"
 
-    @check("pyproject version matches the package")
+    @check("pyproject leaves the version dynamic")
     def _():
-        import tomllib
         pp = ROOT / "pyproject.toml"
         if not pp.exists():
             return                                      # installed, no source
-        data = tomllib.loads(pp.read_text())
-        assert "version" not in data["project"], \
+        # A plain text scan, not tomllib: that module is 3.11+ and this check
+        # has to run on every Python the package claims to support.
+        lines = [ln.strip() for ln in pp.read_text().splitlines()]
+        assert 'dynamic = ["version"]' in lines, "pyproject must declare a dynamic version"
+        assert not any(ln.startswith("version = \"") for ln in lines), \
             "pyproject pins a version; it must stay dynamic"
 
     @check("choice keys keep their given order")
