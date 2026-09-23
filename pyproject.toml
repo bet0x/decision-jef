@@ -37,6 +37,11 @@ dependencies = [
     "safetensors>=0.4",
 ]
 
+[project.scripts]
+# Existing Jev clients post to /v1/systemone; this serves that route from the
+# same weights, so a client changes one URL and nothing else.
+decision-jef-serve = "decision_jef.serve:main"
+
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 

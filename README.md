@@ -65,7 +65,7 @@ benchmark whose labels are annotator averages rather than single verdicts.
 
 † Published Brier figures use two conventions. Laya reports 0.061 averaged per
 class and attributes 0.148 to Jev summed over classes, which reads as a 2.4x
-gap and is a unit mismatch. The 0.083 above is summed, the same convention as
+gap and is a unit mismatch. The 0.092 above is summed, the same convention as
 the 0.148, so it is comparable to Jev's figure and **not** to Laya's.
 
 ### Option order
@@ -346,6 +346,80 @@ state = email.as_state(sender, subject, body)
 `email.clean(body)` cuts the quoted thread, the signature block and the
 disclaimer, and `as_state` formats the fields the way the rest of this package
 feeds the model.
+
+## Serving an existing Jev client
+
+Clients written against Jev post to `/v1/systemone` and read back
+`{"answers": {...}}`. This package serves that route from these weights, so
+such a client changes one URL and nothing else.
+
+```bash
+pip install decision-jef
+decision-jef-serve                       # 127.0.0.1:8088, weights from the Hub
+```
+
+```
+decision-jef serving BarraHome/Decision-Jef-0.1 on http://127.0.0.1:8088/v1/systemone
+```
+
+| flag | default | what |
+| --- | --- | --- |
+| `--weights` | `BarraHome/Decision-Jef-0.1` | repository id or a local directory |
+| `--host` `--port` | `127.0.0.1` `8088` | where to listen |
+| `--token TOKEN` | none | require `Authorization: Bearer TOKEN`; omitted, any value is accepted |
+| `--calibrated` | off | apply the shipped temperatures; read the calibration section first |
+| `--device` | `auto` | passed to the loader |
+| `--quiet` | off | stop logging one line per request |
+
+`GET /health` returns `{"status": "ok"}`. Every answer body carries
+`latency_ms` for the forward pass. Requests are serialised behind a lock: the
+model is not re-entrant, so two overlapping ticks would otherwise interleave
+their batches. It is the standard library and one forward pass, not a
+framework.
+
+Then point the client at it. Both published Doom agents hardcode the upstream
+URL, so this is a one-line edit:
+
+```python
+# AmoghCreator/doom-jev, agent/jev_client.py
+self.url = "http://127.0.0.1:8088/v1/systemone"
+```
+
+```ts
+// lukaske/jev-doom-agent, server/typesafe.ts
+await fetch('http://127.0.0.1:8088/v1/systemone', { ... })
+```
+
+Measured against the first of those, sending its own six-question tick -- four
+`choice` and two `noul` over a YAML situation report -- the round trip is 33 ms
+end to end, 31 ms of it the forward pass. Their client allows 1.5 s and queries
+at 10 Hz.
+
+### What the server accepts that the format does not
+
+A live client builds its option list from the world. A game agent asking which
+visible enemy to aim at usually has one or none, and `{"none": "No valid
+targets"}` is a single-option `choice`. The wire format requires two, and
+should: a choice among one alternative is not a choice. But the answer is
+forced and correct, so the server answers those itself, with probability 1 and
+`"forced": true` in the body, and never asks the model. Without this, one of
+those agents gets HTTP 422 for most of a game.
+
+Instructions and state also arrive structured rather than as strings from some
+clients -- `{"task": "Choose navigation for this tick.", "policy": ...}` -- and
+are flattened to text rather than rejected, because the model reads them as
+text.
+
+### Before you point a game at it
+
+This model was trained on support decisions and structured rule-following, not
+on spatial tactics, and it shows. On a Doom state with 34 health, four shells
+and 42 damage just taken it chooses `engage`; asked which of two enemies to
+aim at, it picks the one 640 units away over the one at 210 centred in the
+crosshair. What does work is that it says so: on that state the movement and
+rotation questions come back at 0.484 and 0.498 confidence, which is the model
+reporting that it does not know rather than inventing a number. Read the
+confidence.
 
 ## The three question types
 

@@ -128,6 +128,46 @@ def main() -> int:
                 continue
             raise AssertionError(f"case {i} should have raised ValueError")
 
+    @check("a live client's structured instructions and state become text")
+    def _():
+        # A browser agent sends instructions as an object, with its standing
+        # policy and the tick's constraints alongside the task, and a
+        # structured state as nested objects. Passing either to the model as a
+        # Python repr would feed it punctuation.
+        from decision_jef.wire import as_instructions, as_state_text
+        got = as_instructions({"task": "Choose navigation for this tick.",
+                               "policy": "Play Doom autonomously.", "tick": 41})
+        assert got.startswith("task: Choose navigation"), got
+        assert ".." not in got, got            # a value already ending in "."
+        assert "{" not in got and "'" not in got, got
+        assert as_instructions("plain") == "plain"
+        assert as_instructions(None) == ""
+        st = as_state_text({"health": 88, "ammo": {"shells": 12}})
+        assert st == '{"health": 88, "ammo": {"shells": 12}}', st
+        assert as_state_text("already text") == "already text"
+
+    @check("a one-option choice is answered rather than refused")
+    def _():
+        # A live client builds its option list from the world: a game agent
+        # asks which visible enemy to aim at and usually has one or none. The
+        # wire format still requires two -- a choice among one is not a choice
+        # -- so the server answers these itself instead of returning 422.
+        from decision_jef.serve import _forced_choices, _wire_forced
+        payload = {"state": "s", "questions": {
+            "target": {"type": "choice", "criteria": {"Demon_1": "aim at it"},
+                       "instructions": "Which enemy?"},
+            "movement": {"type": "choice", "instructions": "Where?",
+                         "criteria": {"a": "A", "b": "B"}}}}
+        forced = _forced_choices(payload)
+        assert forced == {"target": "Demon_1"}, forced
+        assert list(payload["questions"]) == ["movement"], payload["questions"]
+        wired = _wire_forced(forced)["answers"]["target"]
+        assert wired["choice"] == "Demon_1" and wired["confidence"] == 1.0
+        assert wired["probabilities"] == {"Demon_1": 1.0} and wired["forced"]
+        # A two-option choice is left for the model.
+        assert _forced_choices({"questions": {"m": {
+            "type": "choice", "criteria": {"a": "A", "b": "B"}}}}) == {}
+
     @check("a question's packing does not depend on what precedes it")
     def _():
         # This shipped broken. Attention isolation was exact, but positions ran

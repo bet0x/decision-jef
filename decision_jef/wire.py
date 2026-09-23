@@ -21,6 +21,46 @@ MAX_SCORE_LEVELS = 10
 MIN_SCORE_LEVELS = 2
 
 
+def as_instructions(value) -> str:
+    """The instructions as text, whatever shape the caller sent them in.
+
+    A real Jev client may send an object here rather than a string: a browser
+    agent driving a game loop sends `{"task": "Choose navigation for this
+    tick.", ...}` with its standing policy and the tick's constraints
+    alongside. The model reads instructions as text, so an object has to be
+    flattened rather than rejected, and `str(dict)` would feed it Python repr
+    punctuation.
+    """
+    if isinstance(value, str):
+        return value
+    if value is None:
+        return ""
+    if isinstance(value, dict):
+        # `task` first when present: it is the instruction, the rest is context.
+        keys = (["task"] if "task" in value else []) + [
+            k for k in value if k != "task"]
+        # Strip a trailing stop from each part before joining, or a value that
+        # already ends in one produces "tick.. policy:".
+        parts = [f"{k}: {as_instructions(value[k])}".strip().rstrip(".").strip()
+                 for k in keys if value[k] is not None]
+        return ". ".join(p for p in parts if p) + ("." if parts else "")
+    if isinstance(value, (list, tuple)):
+        return ". ".join(as_instructions(v) for v in value if v is not None)
+    return str(value)
+
+
+def as_state_text(value) -> str:
+    """The state as text. A structured state arrives as an object.
+
+    Serialised as JSON rather than flattened: a caller that sent nested
+    objects meant their structure, and the state is the thing every question
+    asks about. Key order is the caller's.
+    """
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False, sort_keys=False)
+
+
 def _text(value) -> str:
     """Option text, or "" when there is none.
 
@@ -127,8 +167,10 @@ class Request:
     def from_json(cls, d: dict) -> "Request":
         qs = {}
         for qid, q in d["questions"].items():
-            qs[qid] = Question(q["type"], q["instructions"], q.get("criteria"))
-        return cls(state=d["state"], questions=qs, model=d.get("model", "jev-latest"))
+            qs[qid] = Question(q["type"], as_instructions(q["instructions"]),
+                               q.get("criteria"))
+        return cls(state=as_state_text(d["state"]), questions=qs,
+                   model=d.get("model", "jev-latest"))
 
 
 @dataclass
