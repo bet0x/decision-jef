@@ -35,6 +35,7 @@ class Packed:
     input_ids: torch.Tensor        # [B, L]
     attention_mask: torch.Tensor   # [B, L] 1 = real token
     segment_ids: torch.Tensor      # [B, L] 0 = state, i+1 = question i
+    position_ids: torch.Tensor     # [B, L] restarts at the state's end per question
     dec_pos: torch.Tensor          # [Nq] index of each question's [DEC]
     opt_pos: torch.Tensor          # [Nq, max_opts] index of each [OPT]
     opt_mask: torch.Tensor         # [Nq, max_opts] True = real option
@@ -82,7 +83,7 @@ def pack(requests: Sequence[Request], tok, max_len: int = 1024,
     pad = tok.pad_token_id
     enc = lambda s: tok(s, add_special_tokens=False)["input_ids"]
 
-    rows, seg_rows, per_q, dropped = [], [], [], 0
+    rows, seg_rows, pos_rows, per_q, dropped = [], [], [], [], 0
     for b, req in enumerate(requests):
         blocks = []
         for qid, q in req.questions.items():
@@ -96,6 +97,8 @@ def pack(requests: Sequence[Request], tok, max_len: int = 1024,
 
         ids = [bos] + state + [eos]
         seg = [0] * len(ids)
+        pos = list(range(len(ids)))
+        q_base = len(ids)
         for qi, (qid, q, blk, opts, dec) in enumerate(blocks):
             if len(ids) + len(blk) > max_len:
                 dropped += 1
@@ -103,19 +106,32 @@ def pack(requests: Sequence[Request], tok, max_len: int = 1024,
             base = len(ids)
             ids.extend(blk)
             seg.extend([qi + 1] * len(blk))
+            # Positions restart at the end of the state for every question, so
+            # each block sits exactly where it would if its question were the
+            # only one in the request. Attention isolation already hides the
+            # other questions' tokens, but without this their *length* still
+            # moves this question through RoPE: measured on the released
+            # weights, one noul question answered 0.215 alone and 0.104 with an
+            # 18-token question in front of it, and two different questions of
+            # equal length gave bit-identical answers. The leak was positional,
+            # not informational. For a single-question request this is a no-op.
+            pos.extend(range(q_base, q_base + len(blk)))
             per_q.append(dict(batch=b, qid=qid, kind=q.kind, keys=q.keys,
                               dec=base + dec, opts=[base + o for o in opts]))
         rows.append(ids)
         seg_rows.append(seg)
+        pos_rows.append(pos)
 
     B, L = len(rows), max(len(r) for r in rows)
     input_ids = torch.full((B, L), pad, dtype=torch.long)
     attn = torch.zeros((B, L), dtype=torch.long)
     segs = torch.zeros((B, L), dtype=torch.long)
-    for i, (r, s) in enumerate(zip(rows, seg_rows)):
+    poss = torch.zeros((B, L), dtype=torch.long)
+    for i, (r, s, pp) in enumerate(zip(rows, seg_rows, pos_rows)):
         input_ids[i, : len(r)] = torch.tensor(r)
         attn[i, : len(r)] = 1
         segs[i, : len(s)] = torch.tensor(s)
+        poss[i, : len(pp)] = torch.tensor(pp)
 
     Nq = len(per_q)
     mo = max((len(p["opts"]) for p in per_q), default=1)
@@ -131,6 +147,7 @@ def pack(requests: Sequence[Request], tok, max_len: int = 1024,
             opt_mask[i, j] = True
 
     return Packed(input_ids=input_ids, attention_mask=attn, segment_ids=segs,
+                  position_ids=poss,
                   dec_pos=dec_pos, opt_pos=opt_pos, opt_mask=opt_mask,
                   batch_idx=batch_idx,
                   kinds=[p["kind"] for p in per_q],

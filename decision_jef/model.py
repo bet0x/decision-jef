@@ -108,30 +108,27 @@ class DecisionJef(nn.Module):
             return masks
 
         allowed = segment_attention_mask(batch.segment_ids, batch.attention_mask)
-        out = {}
-        for name, m in masks.items():
-            if m is None:
-                # The constructors return None when a batch has no padding,
-                # so build the mask here.
-                base = allowed.clone()
-                if name == "sliding_attention":
-                    base = base & self._window(batch)
-                out[name] = base
-            elif m.dtype == torch.bool:
-                out[name] = m & allowed
-            else:
-                # Finite large negative, not -inf: a fully masked row with
-                # -inf yields NaN.
-                out[name] = m.masked_fill(~allowed, -1e4)
-        return out
+        # Built by hand rather than intersected with the encoder's own masks.
+        # `create_bidirectional_mask` contributes only the padding restriction,
+        # which segment_attention_mask already applies, and the sliding
+        # constructor's band is indexed by absolute position -- exactly what
+        # _window has to replace for the isolation promise to hold.
+        return {"full_attention": allowed,
+                "sliding_attention": allowed & self._window(batch)}
 
     def _window(self, batch: Packed) -> torch.Tensor:
         """The local-attention band the sliding layers use, [1, 1, L, L] bool."""
-        L = batch.input_ids.shape[1]
         half = self.config.local_attention // 2
-        idx = torch.arange(L, device=batch.input_ids.device)
-        band = (idx.unsqueeze(1) - idx.unsqueeze(0)).abs() <= half
-        return band.unsqueeze(0).unsqueeze(0)
+        # Distance in restarted positions, not in absolute indices. Measured on
+        # the released weights: with an index-based band, an 84-token question
+        # placed in front pushed the next question's block past the 128-token
+        # window and cost it sight of part of the shared state, moving its
+        # answer by 2.1e-02 even with attention isolation exact. Positions
+        # restart per question (see pack.py), so this band reproduces the
+        # single-question geometry for every question in the request.
+        pos = batch.position_ids
+        band = (pos.unsqueeze(2) - pos.unsqueeze(1)).abs() <= half
+        return band.unsqueeze(1)
 
     def escalate_logit(self, batch: Packed) -> Optional[torch.Tensor]:
         """One logit per question: how much this decision wants a person.
@@ -143,6 +140,7 @@ class DecisionJef(nn.Module):
             return None
         hidden = self.encoder.embeddings(input_ids=batch.input_ids)
         h = self.encoder(input_ids=batch.input_ids,
+                         position_ids=batch.position_ids,
                          attention_mask=self._masks(batch, hidden)).last_hidden_state
         return self.act_head(h[batch.batch_idx, batch.dec_pos]).squeeze(-1)
 
@@ -150,6 +148,7 @@ class DecisionJef(nn.Module):
                 with_escalation: bool = False):
         hidden = self.encoder.embeddings(input_ids=batch.input_ids)
         h = self.encoder(input_ids=batch.input_ids,
+                         position_ids=batch.position_ids,
                          attention_mask=self._masks(batch, hidden)).last_hidden_state
 
         flat = batch.batch_idx

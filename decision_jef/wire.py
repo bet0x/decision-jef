@@ -94,6 +94,24 @@ class Request:
     questions: Dict[str, Question]          # ordered
     model: str = "jev-latest"
 
+    def __post_init__(self):
+        if not self.questions:
+            raise ValueError("a request needs at least one question")
+        for qid, q in self.questions.items():
+            if isinstance(q, Question):
+                continue
+            # A plain dict is the obvious thing to pass, and without this check
+            # it reaches the packer, where `q.keys` resolves to dict.keys and
+            # the failure reads "object of type 'builtin_function_or_method'
+            # has no len()". Say what to do instead.
+            if isinstance(q, dict):
+                raise TypeError(
+                    f"question {qid!r} is a plain dict; wrap it as "
+                    "Question(kind=..., instructions=..., criteria=...), or "
+                    "build the whole request with Request.from_json()")
+            raise TypeError(
+                f"question {qid!r} is {type(q).__name__}, expected Question")
+
     def to_json(self) -> dict:
         out = {"model": self.model, "state": self.state, "questions": {}}
         for qid, q in self.questions.items():

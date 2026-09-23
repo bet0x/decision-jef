@@ -18,6 +18,26 @@ ROOT = Path(__file__).resolve().parent
 FAILURES: list[str] = []
 
 
+_TOK = []
+
+
+def _tok():
+    """The packer needs a real tokenizer. Cache it; skip if it is unreachable.
+
+    verify.py runs in CI without network on some jobs, so a missing tokenizer
+    has to skip the check rather than fail the suite. It returns None only
+    when the download is impossible, never when the packing is wrong.
+    """
+    if not _TOK:
+        try:
+            from transformers import AutoTokenizer
+            _TOK.append(AutoTokenizer.from_pretrained("jhu-clsp/mmBERT-base"))
+        except Exception as e:                        # noqa: BLE001
+            print(f"    (sin tokenizador: {type(e).__name__})")
+            _TOK.append(None)
+    return _TOK[0]
+
+
 def check(name: str):
     def deco(fn):
         try:
@@ -107,6 +127,57 @@ def main() -> int:
             except ValueError:
                 continue
             raise AssertionError(f"case {i} should have raised ValueError")
+
+    @check("a question's packing does not depend on what precedes it")
+    def _():
+        # This shipped broken. Attention isolation was exact, but positions ran
+        # straight through the sequence, so RoPE moved a question whenever
+        # another was placed in front of it, and the sliding layers' band was
+        # indexed absolutely, so a long preceding question cost the next one
+        # sight of the shared state. One noul question answered 0.215 alone and
+        # 0.104 behind an 18-token question. Nothing in this file caught it.
+        import torch
+        from decision_jef.pack import pack, segment_attention_mask
+        tok = _tok()
+        if tok is None:
+            return                      # no tokenizer available offline
+        u = Question("noul", "Does this need a reply today?")
+        a = Question("choice", "Which queue?", {"x": "one two three",
+                                                "y": "four five six"})
+        big = Question("choice", "Which queue?", {"x": "alpha beta " * 20,
+                                                  "y": "gamma delta " * 20})
+        alone = pack([Request("s", {"u": u})], tok, 1024)
+        want = alone.position_ids[0, alone.segment_ids[0] == 1].tolist()
+        for name, qs in (("short first", {"a": a, "u": u}),
+                         ("long first", {"a": big, "u": u}),
+                         ("two first", {"a": a, "b": big, "u": u})):
+            got = pack([Request("s", qs)], tok, 1024)
+            seg = list(qs).index("u") + 1
+            have = got.position_ids[0, got.segment_ids[0] == seg].tolist()
+            assert have == want, f"{name}: {have[:6]} != {want[:6]}"
+        # And the mask must still hide the other questions outright.
+        m = segment_attention_mask(got.segment_ids, got.attention_mask)[0, 0]
+        seg = got.segment_ids[0]
+        mine, other = seg == 3, seg == 1
+        assert not bool(m[mine][:, other].any()), "a question can see another"
+
+    @check("a question passed as a plain dict says what to do")
+    def _():
+        # Without the check in Request.__post_init__ this reached the packer,
+        # where `q.keys` resolves to dict.keys, and the user saw "object of
+        # type 'builtin_function_or_method' has no len()".
+        try:
+            Request("state", {"queue": {"type": "choice", "options": {"a": "A"}}})
+        except TypeError as e:
+            assert "plain dict" in str(e) and "Question(" in str(e), str(e)
+        else:
+            raise AssertionError("a plain dict should have raised TypeError")
+        try:
+            Request("state", {})
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("an empty request should have raised ValueError")
 
     @check("an option with no description falls back to its key")
     def _():

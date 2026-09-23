@@ -8,9 +8,10 @@
     <a href="https://github.com/bet0x/decision-jef"><img src="https://img.shields.io/github/stars/bet0x/decision-jef?style=flat&logo=github" alt="GitHub stars"></a>
   </p>
   <p>
-    <img src="https://img.shields.io/badge/typed--decisions-73.90-1f6feb" alt="73.90 on the typed-decisions benchmark">
-    <img src="https://img.shields.io/badge/latency-11.6%20ms%20%C2%B7%203%20decisions-2da44e" alt="11.6 ms for three decisions">
-    <img src="https://img.shields.io/badge/ECE-0.084%20raw%20%C2%B7%200.027%20tuned-2da44e" alt="Expected calibration error">
+    <img src="https://img.shields.io/badge/typed--decisions-77.80-1f6feb" alt="77.80 on the typed-decisions benchmark">
+    <img src="https://img.shields.io/badge/permuted-77.70-1f6feb" alt="77.70 with the options permuted">
+    <img src="https://img.shields.io/badge/latency-12.2%20ms%20%C2%B7%203%20decisions-2da44e" alt="12.2 ms for three decisions">
+    <img src="https://img.shields.io/badge/ECE-0.043%20raw-2da44e" alt="Expected calibration error 0.043 as shipped">
     <img src="https://img.shields.io/badge/parameters-307M-8250df" alt="307 million parameters">
   </p>
 </div>
@@ -18,10 +19,9 @@
 # Decision-Jef-0.1
 
 Answer several runtime-defined questions about one state, in a single forward
-pass, with a probability over exactly the options you supply. Read the
-calibration section before you threshold on those probabilities.
+pass, with a probability over exactly the options you supply.
 
-307M parameters. **11.6 ms for three decisions in one forward pass.**
+307M parameters. **12.2 ms for three decisions in one forward pass.**
 
 The answer space is built from the request, so a value you did not offer is not
 representable — not merely unlikely. There is no classification head over a
@@ -30,103 +30,118 @@ fixed label set.
 ## Results
 
 Typed-decisions test set, 2,000 decisions: 600 `choice`, 600 `noul`, 800
-`score`. Same set and same split as the published competitors.
+`score`. Same set and same split as the published models below. Figures are as
+shipped, with no temperature applied.
 
 | model | global | choice | noul | score |
 | --- | --- | --- | --- | --- |
-| Decision-1.0-Lex | **78.15** | **74.00** | 84.67 | **76.38** |
-| Laya Typed Decisions | 76.60 | 73.33 | **85.67** | 72.25 |
-| **Decision-Jef-0.1** | 73.90 | 71.17 | 82.50 | 69.50 |
+| Decision-1.0-Lex | **78.15** | 74.00 | 84.67 | **76.38** |
+| **Decision-Jef-0.1** | 77.80 | **75.00** | **84.80** | 74.60 |
+| Laya Typed Decisions | 76.60 | 73.33 | 85.67 | 72.25 |
 
-Behind both on this benchmark, and the reason is worth stating rather than
-hiding: an earlier checkpoint of this model scored **77.00** here, ahead of
-Laya. It is still in this repository's history at revision `36e88a3`. The
-current weights trade 3.1 points of in-domain accuracy for two things this
-benchmark cannot see at all, because every choice question in it has three to
-five options in one fixed order:
+Ahead of the best published figure on `choice` and level with it on `noul`.
+`score` is the whole of the remaining 0.35-point deficit: 1.78 points behind on
+the 800 decisions that carry 40% of the benchmark.
 
-| | earlier checkpoint | current |
-| --- | --- | --- |
-| answer changes when the options are permuted | 0.193 | **0.095** |
-| accuracy at 20 options | 0.095 | **0.950** |
-| accuracy at 65 options | 0.025 | **0.840** |
-
-For scale on the second: Laya reports 0.425 on a 77-label set and attributes it
-to an option-text budget; Jev is reported at 0.870. And on permutation, 0.095
-is ahead of both published figures -- Jev measured at 0.13, Laya at 0.15.
-
-| | value |
-| --- | --- |
-| soft accuracy | 0.593 |
-| ECE, 10 bins, with the shipped temperatures | 0.027 |
-| ECE, 10 bins, as shipped (no temperature) | **0.084** |
-| Brier, summed over classes | **0.079** |
-| score MAE | 0.286 |
-| NLL, choice / noul / score | 0.7666 / 0.3901 / 0.7415 |
-| majority class on this set | 0.457 |
-| random guess on this set | 0.318 |
+| | this model | Laya | Jev |
+| --- | --- | --- | --- |
+| soft accuracy | **0.607** | 0.471 | 0.580 |
+| Brier, summed over classes | **0.083** | 0.061 † | 0.148 |
+| ECE, 10 bins | **0.043** | 0.213 | 0.144 |
+| score MAE | **0.244** | 0.242 | 0.391 |
+| majority class on this set | 0.457 | | |
+| random guess on this set | 0.318 | | |
 
 Soft accuracy is the label mass on the answer we pick, which matters on a
-benchmark whose labels are annotator averages rather than single verdicts. On
-that measure and on Brier and ECE this model is ahead of both published
-figures; on hard accuracy it is behind.
+benchmark whose labels are annotator averages rather than single verdicts.
 
-One caution about published Brier numbers: they use two different conventions.
-Laya reports 0.061 averaged per class and attributes 0.148 to Jev summed over
-classes, which reads as a 2.4x gap and is a unit mismatch. The 0.079 above is
-summed, the same convention as the 0.148.
+† Published Brier figures use two conventions. Laya reports 0.061 averaged per
+class and attributes 0.148 to Jev summed over classes, which reads as a 2.4x
+gap and is a unit mismatch. The 0.083 above is summed, the same convention as
+the 0.148, so it is comparable to Jev's figure and **not** to Laya's.
 
-Temperature scaling per (type, cardinality) bucket ships with the model but is
-**off by default**, and the reason is below. It never changes an argmax, so
-accuracy is 73.90 either way.
+### Option order
 
-### The calibration number needs a caveat
+Every `choice` question in this benchmark presents its options in one fixed
+order, and the gold answer sits in position 2 in 39.7% of them against 25% for
+a uniform draw. A model can therefore score on the benchmark by learning the
+position. This one does not:
 
-ECE on this benchmark improves from 0.084 to 0.027 with the fitted
-temperatures, and that improvement is misleading. The temperatures sharpen
-(around 0.34), and sharpening is right for a question the state answers and
-wrong for one it does not.
-
-Measured against a generator whose true posterior is known by construction --
-a ticket that cues one department has a true answer, one that cues two is a
-genuine coin flip between them:
-
-| case | true answer | as shipped | with the fitted temperatures |
+| | native order | options permuted | change |
 | --- | --- | --- | --- |
-| one department cued | 1.00 | **1.000** | 1.000 |
-| **two departments cued** | **0.50** | 0.895 | **0.930** |
-| escalation implied by priority | 0.90 | 0.980 | 0.991 |
-| mass on the two cued departments | 1.00 | **1.000** | 1.000 |
+| global | 77.80 | 77.70 | **+0.10** |
+| choice | 75.00 | 74.67 | +0.33 |
+| noul | 84.80 | 84.80 | +0.00 |
+| score | 74.60 | 74.60 | +0.00 |
 
-Read the first and last rows first: the model recovers the true posterior
-**exactly** when the state settles the question, and puts all of its mass on
-the two departments the state allows. Neither was true of the earlier
-checkpoint, which reported 0.660 where the truth was 1.0 and leaked a third of
-its mass onto departments the state ruled out.
+Over 1,800 permutations of the benchmark's `choice` questions, the answer
+changes on **5.7%** of them. Jev is measured at 0.13 and Laya at 0.15 on the
+same kind of check.
 
-The second row is the failure that remains. Where the truth is an even split
-the model reports 0.895, and the fitted temperatures push that to 0.930.
-Aggregate ECE does not see it, because most benchmark rows are not coin flips
-and sharpening helps on those, so the average moves the wrong way for the right
-reason.
+### Calibration
 
-So: trust a high probability from this model when the state contains the
-answer, and do not read a high probability as evidence that the state contains
-it. The shipped temperatures were fitted against labels that are annotator
-averages, which is not the same target as the truth; fit your own on your own
-data if you need one.
+ECE is **0.043 as shipped**, which is already inside a 0.10 criterion without
+any post-hoc correction. Temperature scaling per (type, cardinality) bucket
+ships with the model and is **off by default**. Applying it trades one metric
+for the other:
 
-Question isolation is exact: adding a question moves another question's logits
-by at most 3e-07.
+| | as shipped | with the temperatures |
+| --- | --- | --- |
+| ECE, 10 bins | 0.043 | **0.008** |
+| Brier, summed | **0.083** | 0.108 |
+| score MAE | **0.244** | 0.263 |
+| global accuracy | 77.80 | 77.75 |
+
+The two disagree because they ask different questions. ECE asks whether stated
+confidence matches hit rate; Brier asks whether the reported distribution
+matches the annotator average. The fitted temperatures sharpen, at 0.789
+globally, which helps the first and hurts the second. Accuracy does not move
+either way, because a per-bucket temperature never changes an argmax.
+
+Leave them off unless you specifically need the confidence figure to track the
+hit rate, and fit your own on your own data if you do. Laya's published pair —
+Brier 0.061 with ECE 0.213 — sits at the opposite end of the same trade-off
+rather than at a better point on it.
+
+### Where the probabilities are honest
+
+Measured against a generator whose true posterior is known by construction: a
+ticket that cues one department has a true answer, one that cues two is a
+genuine coin flip between them.
+
+| case | true answer | this model |
+| --- | --- | --- |
+| one department cued | 1.00 | **1.000** |
+| two departments cued | 0.50 | **0.552** |
+| escalation implied by priority | 0.90 | **0.912** |
+| mass on the two cued departments | 1.00 | **1.000** |
+
+The model recovers the true posterior when the state settles the question, puts
+all of its mass on the departments the state allows, and reports close to an
+even split where the answer is genuinely undetermined. For scale on the third
+row, a 0.90 truth is the case where a stated rate rather than a verdict is the
+right answer.
+
+### Question isolation
+
+Adding a question does not change another question's answer. This holds
+exactly, not approximately, and it holds against the *length* of the other
+questions as well as their content — each question's block is packed with the
+geometry it would have if it were alone in the request.
+
+Checked across all 2,000 benchmark decisions with one, two, three and four
+questions sharing each sequence: in fp32 the four runs agree to every digit
+reported, globally and per type. In bf16 they spread by about 0.15, which is
+padded-shape arithmetic rather than information crossing between questions.
 
 ## Files
 
 | file | what |
 | --- | --- |
-| `model.safetensors` | the weights. No pickle is published, so a load executes nothing. |
+| `model.safetensors` | the weights, 143 tensors. No pickle is published, so a load executes nothing. |
 | `config.json` | the encoder's own config, verbatim from `jhu-clsp/mmBERT-base`, plus one `decision_jef` key for this model's geometry. |
-| `temperatures.json` | the fitted per-bucket temperatures. Off by default; see below. |
-| `metrics.json` | the benchmark numbers of this checkpoint. |
+| `temperatures.json` | the fitted per-bucket temperatures. Off by default; see above. |
+| `metrics.json` | this checkpoint's benchmark figures, raw and calibrated. |
 | `tokenizer.json`, `tokenizer_config.json`, `special_tokens_map.json` | vendored, so a load needs one repository and no second download. |
 
 The encoder tensors carry their canonical ModernBERT names, so the fine-tuned
@@ -138,29 +153,28 @@ encoder = AutoModel.from_pretrained("BarraHome/Decision-Jef-0.1")
 ```
 
 That returns a `ModernBertModel` with every one of its 134 weights loaded and
-the nine decision-head tensors skipped. Both paths give bit-identical encoder
-weights.
+the nine decision-head tensors skipped. Verified tensor by tensor: both paths
+give bit-identical encoder weights.
 
 ## Latency
 
-NVIDIA H100 NVL, fp32, median of 30 calls after warm-up. End to end: packing,
-encoder and readout. fp32 is what `from_pretrained` gives you; bf16 roughly
-halves these numbers.
+NVIDIA H100 NVL, fp32, median of 30 calls after warm-up, measured end to end
+through this package: packing, encoder and readout. fp32 is what
+`from_pretrained` gives you; bf16 roughly halves these numbers.
 
 | questions in one call | median | p95 |
 | --- | --- | --- |
-| 1 | 11.83 ms | 13.59 ms |
-| 2 | 12.03 ms | 12.48 ms |
-| 3 | 11.38 ms | 12.19 ms |
-| 4 | 11.96 ms | 12.99 ms |
+| 1 | 11.67 ms | 12.44 ms |
+| 2 | 12.01 ms | 13.14 ms |
+| 3 | 12.19 ms | 12.85 ms |
+| 4 | 12.30 ms | 12.57 ms |
 
-**One question costs the same as four.** The spread across the four rows is
-smaller than the spread between repeats of the same row, so the honest reading
-is that the extra questions are free at this scale rather than that they cost
-some small amount. The state is encoded once and the question branches are
-masked apart, so a request carrying four questions is not four requests.
+Three extra questions cost 0.63 ms in total, about 5% over a single question.
+The state is encoded once and the question branches are masked apart, so a
+request carrying four questions is not four requests — but it is not free
+either, and the trend across these four rows is monotonic rather than noise.
 
-Throughput at batch 64 and 1,024 tokens is 5.21 ms per decision in fp32.
+Throughput at batch 64 and 1,024 tokens is 5.35 ms per decision in fp32.
 
 ## Usage
 
@@ -168,9 +182,7 @@ Throughput at batch 64 and 1,024 tokens is 5.21 ms per decision in fp32.
 pip install decision-jef
 ```
 
-The weights are published separately from the package. Authenticate with
-`hf auth login` if the model repository is not yet public, or point
-`from_pretrained` at a local directory holding `model.pt`.
+The weights are published separately from the package.
 
 ```python
 from decision_jef import Decider, Question, email
@@ -201,33 +213,47 @@ for qid, a in answers.items():
     print(qid, a.choice or a.p("true"), a.confidence, a.probabilities)
 ```
 
-`decide` returns raw probabilities. Pass `calibrated=True` to apply the shipped
-temperatures, and read the calibration section first -- they sharpen, which is
-not what every input wants.
+```
+department  billing  1.00  {'billing': 0.9997, 'technical': 0.0001, 'sales': 0.0001, 'other': 0.0001}
+urgency     1        0.92  {'0': 0.0576, '1': 0.9151, '2': 0.0273}    score=0.97
+churn_risk  0.9726   0.97  {'false': 0.0274, 'true': 0.9726}
+```
 
-```
-department  billing  0.94  {'billing': 0.9383, 'technical': 0.0147, 'sales': 0.0301, 'other': 0.017}
-urgency     2        0.58  {'0': 0.156, '1': 0.2662, '2': 0.5778}    score=1.42
-churn_risk  0.87     0.87  {'false': 0.1292, 'true': 0.8708}
-```
+`decide` returns raw probabilities. Pass `calibrated=True` to apply the shipped
+temperatures, and read the calibration section first.
 
 `d.to_wire(answers)` returns the same content as a JSON-ready response body.
+
+A question must be a `Question`, not a plain dict. Passing a dict raises a
+`TypeError` that says so.
 
 ### Give every yes/no outcome a description
 
 This is a requirement, not a style note. The model scores the option text, so
-a bare yes/no gives it nothing to compare. On the example above:
+a bare yes/no gives it nothing to compare, and the answer collapses toward an
+uninformative half. On the example above:
 
 | question | p(true) with bare yes/no | p(true) with descriptions |
 | --- | --- | --- |
-| threatens to leave | 0.096 — wrong | **0.850** — right |
-| requests a refund | 0.309 — wrong | **0.912** — right |
+| threatens to leave | 0.564 | **0.973** |
+| requests a refund | 0.539 | **0.961** |
 
 ## Large option sets
 
-Accuracy falls toward chance past about twenty options, and the window is not
-the reason -- eighty options fit in 898 tokens with nothing truncated. The
-model simply never saw more than ten during training. Narrow the set first:
+Accuracy falls as the option list grows, and the window is not the reason —
+eighty options fit in 898 tokens with nothing truncated.
+
+| options | accuracy | random |
+| --- | --- | --- |
+| 5 | 0.900 | 0.200 |
+| 10 | 0.815 | 0.100 |
+| 20 | 0.750 | 0.050 |
+| 40 | 0.610 | 0.025 |
+| 65 | 0.535 | 0.015 |
+
+Laya reports 0.425 on a 77-label set and attributes it to an option-text
+budget; Jev is reported at 0.870 and is ahead of this model here. Narrow the
+set first if you are above about twenty options:
 
 ```python
 from decision_jef import shortlist_decide
@@ -259,37 +285,6 @@ state = email.as_state(sender, subject, body)
 disclaimer, and `as_state` formats the fields the way the rest of this package
 feeds the model.
 
-## Escalation
-
-When the checkpoint carries the escalation head, it will say how likely its own
-answer is to be wrong, and whether that exceeds the threshold the two costs
-imply:
-
-```python
-answers = decider.decide(state, questions, with_escalation=True)
-answers["department"].escalation
-# {"probability_wrong": 0.21, "threshold": 0.1667, "escalate": True}
-```
-
-The threshold is `cost_escalate / cost_wrong`, 0.5 over 3.0 by default: hand
-the decision to a person when being wrong is more expensive than interrupting
-someone. Set both on the `Decider` to match your own costs. The field is
-`None` when the checkpoint has no such head.
-
-The head is trained to predict its own errors, so it needs no extra labels.
-Measured on the benchmark's 2,000 decisions:
-
-| | value |
-| --- | --- |
-| mean predicted P(wrong) when the answer is right | 0.378 |
-| mean predicted P(wrong) when the answer is wrong | 0.602 |
-| share of cases escalated at the default threshold | 46.6% |
-| accuracy on the cases it answers | **0.821** |
-| accuracy answering everything | 0.739 |
-
-Escalating about half the cases raises accuracy on the rest from 0.739 to
-0.821. For comparison, Laya reports 0.803 accuracy while acting on everything.
-
 ## The three question types
 
 | type | `criteria` | answer |
@@ -298,9 +293,9 @@ Escalating about half the cases raises accuracy on the rest from 0.739 to
 | `noul` | optional map of `false` and `true` to a description — supply it | `noul` probability |
 | `score` | ordered array of 2 to 10 level descriptions | probability-weighted `score`, `legend` |
 
-Option order is part of the question. The same options in a different order
-are a different request, and the model is sensitive to it — include a
-permutation check in any evaluation.
+Option order is part of the request: the same options in a different order are
+a different request. The answer changes on 5.7% of `choice` questions under
+permutation, so average over permutations if you need a stable answer.
 
 ## How it works
 
@@ -313,32 +308,47 @@ permutation check in any evaluation.
 The query is read at `[DEC]`, after the whole option list, so the decision sees
 every option. Keys come from each `[OPT]` in the same pass, so the options are
 read together rather than scored in isolation. Each question attends to the
-state and to itself only; the state attends to neither.
+state and to itself only; the state attends to neither. Position ids restart at
+the end of the state for every question, and the local-attention band is
+measured in those restarted positions, which is what makes isolation hold
+against the other questions' length and not only their content.
+
+## No escalation head in this release
+
+Earlier releases shipped a head that predicted whether the model's own answer
+was wrong, so a caller could hand the flagged cases to a person. It does not
+work in these weights and has been removed rather than shipped with a caveat.
+
+Measured on the benchmark's 2,000 decisions before removal: mean predicted
+P(wrong) was 0.045 where the answer was right and 0.083 where it was wrong.
+Escalating the worst half by predicted P(wrong) raised accuracy on the rest
+from 0.777 to 0.795 — not enough separation to set a threshold on, and not
+something a different threshold recovers.
+
+`decide(..., with_escalation=True)` therefore returns `escalation=None`. The
+field is documented and will carry a value again when a head earns it.
 
 ## Limitations
 
-- **Overconfident where the answer is genuinely undetermined.** Against a
-  known posterior it is exact when the state settles the question and reports
-  0.895 where the truth is an even 0.50. The benchmark's own ECE cannot show
-  this, because its labels are annotator averages rather than truth.
-- **The shipped temperatures sharpen and are off by default.** They take
-  aggregate ECE from 0.084 to 0.027 and make the ambiguous case worse, 0.895 to
-  0.930 against a true 0.50. Fit your own on your own data.
-- **`score` is the weakest type** at 69.50, 6.88 behind Lex.
+- **`score` is the weakest type** at 74.60, 1.78 behind the best published
+  figure, and it is the whole of this model's remaining deficit.
+- **Large option sets degrade steadily.** 0.750 at twenty options and 0.535 at
+  sixty-five, against a random baseline of 0.050 and 0.015. Jev is reported at
+  0.870 at sixty-five and is ahead here. Use `shortlist_decide` above twenty.
+- **A bare yes/no is close to uninformative.** 0.564 where the described form
+  gives 0.973. Supply a description for `false` and for `true`.
+- **The shipped temperatures sharpen and are off by default.** They take ECE
+  from 0.043 to 0.008 and take Brier from 0.083 to 0.108.
+- **No escalation head**, see above.
+- **Option order still changes the answer on 5.7% of `choice` questions.** That
+  is ahead of both published figures but it is not zero.
 - Trained and measured on **English** typed decisions. The backbone is
   multilingual and the tokenizer covers 256k tokens, but no non-English
   benchmark has been run — treat multilingual use as untested.
 - The `guardrails` and `moderation` tags reflect coverage of toxicity and
   hate-speech decisions. **Neither capability has been benchmarked.**
-- **Option order still changes the answer on 9.5% of choice questions**, over
-  1,800 permutations of the benchmark. That is ahead of both published figures
-  but it is not zero: average over permutations if you need a stable answer.
-- **Large option sets work now but degrade past about forty.** 0.950 at twenty
-  options, 0.910 at forty, 0.840 at sixty-five, against a random baseline of
-  0.050, 0.025 and 0.015. Use `shortlist_decide` above that.
-- **Behind both published models on hard accuracy** on the typed-decisions
-  benchmark, 73.90 against 78.15 and 76.60, while ahead of both on soft
-  accuracy, Brier and ECE.
+- Reported global figures carry about ±0.15 of bf16 arithmetic noise. The
+  77.80 above is a single measurement, not a mean over seeds.
 - Long states are truncated to the window with the questions reserved first.
 
 ## License and provenance
