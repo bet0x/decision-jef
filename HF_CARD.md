@@ -48,12 +48,13 @@ shipped, with no temperature applied.
 | model | global | choice | noul | score |
 | --- | --- | --- | --- | --- |
 | Decision-1.0-Lex | **78.15** | 74.00 | 84.67 | **76.38** |
-| **Decision-Jef-0.1** | 77.80 | **75.00** | **84.80** | 74.60 |
-| Laya Typed Decisions | 76.60 | 73.33 | 85.67 | 72.25 |
+| **Decision-Jef-0.1** | 77.80 | **75.00** | 84.80 | 74.60 |
+| Laya Typed Decisions | 76.60 | 73.33 | **85.67** | 72.25 |
 
-Ahead of the best published figure on `choice` and level with it on `noul`.
-`score` is the whole of the remaining 0.35-point deficit: 1.78 points behind on
-the 800 decisions that carry 40% of the benchmark.
+Ahead of both published figures on `choice`. Behind Laya on `noul` by 0.87 and
+behind Lex on `score` by 1.78. `score` is where the global deficit of 0.35
+comes from: matching Lex there, and leaving the other two types alone, would
+put this model ahead overall, which is not true of closing the `noul` gap.
 
 | | this model | Laya | Jev |
 | --- | --- | --- | --- |
@@ -75,9 +76,20 @@ the 0.148, so it is comparable to Jev's figure and **not** to Laya's.
 ### Option order
 
 Every `choice` question in this benchmark presents its options in one fixed
-order, and the gold answer sits in position 2 in 39.7% of them against 25% for
-a uniform draw. A model can therefore score on the benchmark by learning the
-position. This one does not:
+order, and that order is not uniform. The questions carry four or five options,
+so a uniform draw would put the gold answer in any one slot 23.3% of the time.
+Measured over the 600 `choice` questions:
+
+| slot | share of gold answers | against uniform |
+| --- | --- | --- |
+| 1st | 20.7% | 0.89x |
+| 2nd | 20.2% | 0.86x |
+| **3rd** | **39.7%** | **1.70x** |
+| 4th | 12.2% | 0.52x |
+| 5th | 7.3% | 0.31x |
+
+A model can therefore score on this benchmark by learning to answer third.
+This one does not:
 
 | | native order | options permuted | change |
 | --- | --- | --- | --- |
@@ -252,8 +264,10 @@ uninformative half. On the example above:
 
 ## Large option sets
 
-Accuracy falls as the option list grows, and the window is not the reason —
-eighty options fit in 898 tokens with nothing truncated.
+Accuracy falls as the option list grows, and the window is not the reason:
+eighty options with one-line descriptions pack into 772 tokens of the 1,024
+with none truncated, so the list fits and the readout is what degrades. The
+token figure scales with how long your descriptions are.
 
 | options | accuracy | random |
 | --- | --- | --- |
@@ -279,8 +293,19 @@ so a term every option shares counts for little. It needs no second model.
 Pass `embed_fn` to rank with your own embeddings instead. A question at or
 below `k` options passes through and costs nothing.
 
-Ranking with this model's own logits was tried and does not work: at fifty
-options they are the broken signal, so they rank as badly as they answer.
+This model's own logits are also a usable ranker, and a better one than the
+lexical default. On 200 banking-intent cases cut to fifty options, recall of
+the gold answer in the top sixteen:
+
+| ranker | recall@16 |
+| --- | --- |
+| this model's logits | **0.960** |
+| lexical overlap | 0.865 |
+| random | 0.320 |
+
+Ranking is an easier task than answering, so the logits stay informative at a
+list length where the argmax is already unreliable. Two passes of this model
+cost about 24 ms and need no second model or embedding service.
 
 ## Email
 
@@ -343,10 +368,14 @@ field is documented and will carry a value again when a head earns it.
 ## Limitations
 
 - **`score` is the weakest type** at 74.60, 1.78 behind the best published
-  figure, and it is the whole of this model's remaining deficit.
+  figure, on the 800 decisions that carry 40% of the benchmark. It is where the
+  global deficit of 0.35 comes from.
+- **`noul` is 0.87 behind the best published figure**, 84.80 against 85.67.
 - **Large option sets degrade steadily.** 0.750 at twenty options and 0.535 at
   sixty-five, against a random baseline of 0.050 and 0.015. Jev is reported at
-  0.870 at sixty-five and is ahead here. Use `shortlist_decide` above twenty.
+  0.870 at sixty-five and is ahead here. Narrow the list above twenty; the
+  model's own logits rank well enough to do it, at 0.960 recall@16 out of fifty
+  options, even where its argmax is already unreliable.
 - **A bare yes/no is close to uninformative.** 0.564 where the described form
   gives 0.973. Supply a description for `false` and for `true`.
 - **The shipped temperatures sharpen and are off by default.** They take ECE
