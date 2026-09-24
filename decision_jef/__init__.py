@@ -16,7 +16,7 @@
         },
     )
 """
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 from decision_jef import email
 from decision_jef.infer import Decider
