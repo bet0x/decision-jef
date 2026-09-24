@@ -22,10 +22,10 @@ tags:
 <p align="center">
   <a href="https://pypi.org/project/decision-jef/"><img src="https://img.shields.io/pypi/v/decision-jef?logo=pypi&logoColor=white" alt="PyPI version"></a>
   <a href="https://github.com/bet0x/decision-jef"><img src="https://img.shields.io/badge/GitHub-decision--jef-181717?logo=github" alt="Source on GitHub"></a>
-  <img src="https://img.shields.io/badge/typed--decisions-78.00-1f6feb" alt="78.00 on the typed-decisions benchmark">
-  <img src="https://img.shields.io/badge/permuted-78.10-1f6feb" alt="78.10 with the options permuted">
+  <img src="https://img.shields.io/badge/typed--decisions-77.50-1f6feb" alt="77.50 on the typed-decisions benchmark">
+  <img src="https://img.shields.io/badge/permuted-77.60-1f6feb" alt="77.60 with the options permuted">
   <img src="https://img.shields.io/badge/latency-12.0%20ms%20%C2%B7%203%20decisions-2da44e" alt="12.0 ms for three decisions">
-  <img src="https://img.shields.io/badge/ECE-0.012%20raw-2da44e" alt="Expected calibration error 0.012 as shipped">
+  <img src="https://img.shields.io/badge/ECE-0.011%20raw-2da44e" alt="Expected calibration error 0.011 as shipped">
 </p>
 
 # Decision-Jef-0.1
@@ -50,17 +50,17 @@ shipped, with no temperature applied.
 | model | global | choice | noul | score |
 | --- | --- | --- | --- | --- |
 | Decision-1.0-Lex | **78.15** | 74.00 | 84.67 | **76.38** |
-| **Decision-Jef-0.1** | 78.00 | **76.20** | 84.30 | 74.60 |
+| **Decision-Jef-0.1** | 77.50 | **75.70** | 84.30 | 73.90 |
 | Laya Typed Decisions | 76.60 | 73.33 | **85.67** | 72.25 |
 | Jev | 72.70 | not published | not published | not published |
 
-Behind Lex by 0.15 and ahead of Laya by 1.40. `choice` at 76.20 is 2.20 ahead
-of the best published figure; `score` at 74.60 is 1.78 behind it and is the
-whole of the remaining deficit.
+Behind Lex by 0.65 and ahead of Laya by 0.90. `choice` at 75.70 is 1.70 ahead
+of the best published figure; `score` at 73.90 is 2.48 behind it.
 
-With the options permuted this model scores **78.10**, which is 0.05 off Lex's
-native figure. See the option-order section for why the permuted number is
-the higher one.
+This release gives back 0.50 of benchmark accuracy to learn a new domain in
+full, which the Flappy Bird section below measures. The 0.8.0 weights reached
+78.00 and are still on the Hub at revision `5a015f6c` if that trade is the
+wrong way round for you.
 
 The figures each model publishes do not line up. Lex publishes a per-type
 breakdown and no aggregate metrics; Jev publishes aggregates and no breakdown.
@@ -68,10 +68,10 @@ The tables here say which is which rather than filling the gaps.
 
 | | this model | Laya | Jev |
 | --- | --- | --- | --- |
-| soft accuracy | **0.607** | 0.471 | 0.580 |
-| Brier, summed over classes | **0.110** | 0.061 † | 0.148 |
-| ECE, 10 bins | **0.012** | 0.213 | 0.144 |
-| score MAE | 0.272 | **0.242** | 0.391 |
+| soft accuracy | **0.605** | 0.471 | 0.580 |
+| Brier, summed over classes | **0.112** | 0.061 † | 0.148 |
+| ECE, 10 bins | **0.011** | 0.213 | 0.144 |
+| score MAE | 0.273 | **0.242** | 0.391 |
 | majority class on this set | 0.457 | | |
 | random guess on this set | 0.318 | | |
 
@@ -80,7 +80,7 @@ benchmark whose labels are annotator averages rather than single verdicts.
 
 † Published Brier figures use two conventions. Laya reports 0.061 averaged per
 class and attributes 0.148 to Jev summed over classes, which reads as a 2.4x
-gap and is a unit mismatch. The 0.110 above is summed, the same convention as
+gap and is a unit mismatch. The 0.112 above is summed, the same convention as
 the 0.148, so it is comparable to Jev's figure and **not** to Laya's.
 
 ### Option order
@@ -103,17 +103,17 @@ This one does not:
 
 | | native order | options permuted | change |
 | --- | --- | --- | --- |
-| global | 78.00 | 78.10 | **-0.10** |
-| choice | 76.17 | 76.50 | -0.33 |
+| global | 77.55 | 77.60 | **-0.05** |
+| choice | 75.67 | 75.83 | -0.17 |
 | noul | 84.33 | 84.33 | +0.00 |
-| score | 74.62 | 74.62 | +0.00 |
+| score | 73.88 | 73.88 | +0.00 |
 
 Over 1,800 permutations of the benchmark's `choice` questions, the answer
-changes on **5.4%** of them. Jev is measured at 0.13 and Laya at 0.15 on the
+changes on **5.3%** of them. Jev is measured at 0.13 and Laya at 0.15 on the
 same kind of check.
 
 This table comes from the permutation harness and the one above from the
-like-for-like harness, and both read 78.00 natively.
+like-for-like harness, and both read about 77.5 natively.
 Neither is rounded to flatter the other. Permuting the options *raises* the
 score by 0.10, which is what a model carrying no positional prior does on a
 benchmark that puts the gold answer third 39.7% of the time: the native order
@@ -121,7 +121,7 @@ costs it slightly.
 
 ### Calibration
 
-ECE is **0.012 as shipped**, which is already inside a 0.10 criterion without
+ECE is **0.011 as shipped**, which is already inside a 0.10 criterion without
 any post-hoc correction. Temperature scaling per (type, cardinality) bucket
 ships with the model and is **off by default**. Applying it trades one metric
 for the other:
@@ -130,14 +130,14 @@ for the other:
 
 | | as shipped | with the temperatures |
 | --- | --- | --- |
-| ECE, 10 bins | **0.012** | 0.022 |
-| Brier, summed | **0.110** | 0.113 |
-| score MAE | **0.272** | 0.276 |
-| global accuracy | 78.00 | 78.00 |
+| ECE, 10 bins | **0.011** | 0.017 |
+| Brier, summed | **0.112** | 0.115 |
+| score MAE | **0.273** | 0.277 |
+| global accuracy | 77.50 | 77.50 |
 
 The two disagree because they ask different questions. ECE asks whether stated
 confidence matches hit rate; Brier asks whether the reported distribution
-matches the annotator average. The temperatures now make calibration **worse**: ECE goes from 0.012 to 0.022.
+matches the annotator average. The temperatures now make calibration **worse**: ECE goes from 0.011 to 0.017.
 The model ships calibrated and the fitted values are kept only as a starting
 point for callers who want to refit on their own data. Do not switch them on
 expecting an improvement.
@@ -164,7 +164,7 @@ genuine coin flip between them.
 | --- | --- | --- |
 | one department cued | 1.00 | **1.000** |
 | two departments cued | 0.50 | **0.541** |
-| escalation implied by priority | 0.90 | 0.972 |
+| escalation implied by priority | 0.90 | 0.977 |
 | mass on the two cued departments | 1.00 | **1.000** |
 
 The model recovers the true posterior when the state settles the question, puts
@@ -316,11 +316,11 @@ token figure scales with how long your descriptions are.
 
 | options | accuracy | random |
 | --- | --- | --- |
-| 5 | 0.920 | 0.200 |
+| 5 | 0.915 | 0.200 |
 | 10 | 0.800 | 0.100 |
-| 20 | 0.760 | 0.050 |
-| 40 | 0.680 | 0.025 |
-| 65 | 0.620 | 0.015 |
+| 20 | 0.770 | 0.050 |
+| 40 | 0.670 | 0.025 |
+| 65 | 0.625 | 0.015 |
 
 Laya reports 0.425 on a 77-label set and attributes it to an option-text
 budget; Jev is reported at 0.870 and is ahead of this model here. Narrow the
@@ -454,7 +454,7 @@ on the same held-out set, and the answers are no longer constant:
 | `target` | 44.3% | **100.0%** |
 | `rotation` | 29.8% | **99.8%** |
 | `macro_goal` | 41.3% | **98.2%** |
-| all 3,194 decisions | 37.4% | **99.6%** |
+| all 3,194 decisions | 37.4% | **99.7%** |
 
 This costs nothing on the benchmark.
 
@@ -464,6 +464,38 @@ that gives it ECE 0.010 on the benchmark does not warn you: that `engage` at
 0.81 was confidently wrong. If you are putting it on a new state format,
 measure it against a few dozen cases where you know the answer before trusting
 any of its confidences.
+
+## Flappy Bird
+
+[jev-flappy-bird](https://github.com/hosseintoussi/jev-flappy-bird) asks one
+`noul` per frame -- flap or wait -- over a state that names where the bird is
+and how it is moving. Its rule is exact and stated in its own criteria: flap
+below the gap, or in the gap's lower half while not rising.
+
+Sixteen position-and-motion combinations, on frames drawn on a seed no
+training run used:
+
+| position | rising | level | falling | falling fast |
+| --- | --- | --- | --- | --- |
+| above the gap | 100% | 100% | 100% | 100% |
+| below the gap | 98.1% | 100% | 100% | 100% |
+| inside the gap, upper half | 100% | 100% | 100% | 100% |
+| inside the gap, lower half | 100% | 92.6% | 90.7% | 96.9% |
+
+**98.6% over 1,600 frames**, from 71.1% before. The gain is entirely in the
+four cells that need position and motion combined: "inside the gap, lower half"
+with the bird level read **16.0%** before, below chance, while the rule says
+flap. The cells that need only one of the two were already at 100%.
+
+That is the shape every new domain here has taken. The unambiguous cases work
+zero-shot; the ones that need two facts together do not, until the rule is in
+the training data.
+
+That repo's author left a note worth repeating: an option whose text said
+"falling fast" made the model flap whenever the bird fell fast, including above
+the gap where it needs to fall. The criteria describe **where the bird is** and
+never what the physics will do. Our own measurements on yes/no descriptions
+found the same thing from the other direction.
 
 ## Rule teachers from four other people's demos
 
@@ -487,9 +519,9 @@ question: their generators reuse some states across seeds.
 | devtools | `command_gate` | 3 | 303 | 49.5% | **100.0%** |
 | devtools | `flaky` | 2 | 303 | 68.0% | **100.0%** |
 | support | `category` | 5 | 339 | 33.5% | **100.0%** |
-| support | `needs_human` | 2 | 339 | 77.0% | **99.1%** |
-| support | `urgency` | 3 | 339 | 36.5% | **97.9%** |
-| | | | **2,423** | 51.4% | **99.6%** |
+| support | `needs_human` | 2 | 339 | 77.0% | **99.4%** |
+| support | `urgency` | 3 | 339 | 36.5% | **99.4%** |
+| | | | **2,423** | 51.4% | **99.8%** |
 
 Their own head, fitted to the `support/category` teacher, reports 0.992.
 
@@ -551,9 +583,10 @@ field is documented and will carry a value again when a head earns it.
 
 ## Limitations
 
-- **`score` is the weakest type** at 74.60, 1.78 behind the best published
-  figure, and it is the whole of the 0.15 global deficit against Lex. `choice`
-  at 76.20 leads both published models by 2.20.
+- **`score` is the weakest type** at 73.90, 2.48 behind the best published
+  figure. `choice` at 75.70 leads both published models by 1.70.
+- **This release trades 0.50 of benchmark accuracy** for Flappy Bird, 71.1% to
+  98.6%. The 0.8.0 weights are still on the Hub at revision `5a015f6c`.
 - **`noul` is 1.37 behind the best published figure**, 84.30 against 85.67.
 - **A state format this model has not seen produces a constant answer with
   high confidence**, and the ECE of 0.010 does not warn you, because it is an
@@ -561,7 +594,7 @@ field is documented and will carry a value again when a head earns it.
   confidence on new inputs.
 - **Large option sets degrade steadily**, against a random baseline of 0.050
   and 0.015 respectively. Jev is reported at
-  0.870 at sixty-five and is ahead here. 0.760 at twenty and 0.620 at
+  0.870 at sixty-five and is ahead here. 0.770 at twenty and 0.625 at
   sixty-five here. Narrow the list above twenty; the
   model's own logits rank well enough to do it, at 0.960 recall@16 out of fifty
   options, even where its argmax is already unreliable.
@@ -569,9 +602,9 @@ field is documented and will carry a value again when a head earns it.
   against 66.17, and a description templated from the question is worse than
   none at all, 65.33. Write what each outcome means.
 - **The shipped temperatures make calibration worse** and are off by default:
-  ECE 0.012 to 0.022. Refit them on your own data or leave them off.
+  ECE 0.011 to 0.017. Refit them on your own data or leave them off.
 - **No escalation head**, see above.
-- **Option order still changes the answer on 5.4% of `choice` questions.** That
+- **Option order still changes the answer on 5.3% of `choice` questions.** That
   is ahead of both published figures but it is not zero.
 - Trained and measured on **English** typed decisions. The backbone is
   multilingual and the tokenizer covers 256k tokens, but no non-English
@@ -579,7 +612,7 @@ field is documented and will carry a value again when a head earns it.
 - The `guardrails` and `moderation` tags reflect coverage of toxicity and
   hate-speech decisions. **Neither capability has been benchmarked.**
 - Reported global figures carry about ±0.15 of bf16 arithmetic noise. The
-  78.00 above is a single measurement, not a mean over seeds.
+  77.50 above is a single measurement, not a mean over seeds.
 - Long states are truncated to the window with the questions reserved first.
 
 ## License and provenance
