@@ -138,6 +138,18 @@ class _Handler(BaseHTTPRequestHandler):
         ms = (time.perf_counter() - t0) * 1000
         body = self.decider.to_wire(answers)
         body["answers"].update(_wire_forced(forced)["answers"])
+        # `typesafe_sdk.SystemOneResponse` requires a usage object even though
+        # both of its counts are optional, and its `choices`, `nouls` and
+        # `scores` accessors are derived from `answers`, which is the shape
+        # already sent. Without this the SDK rejects the reply at validation
+        # and every client written against it fails before reading a decision.
+        body.setdefault("usage", {"input_tokens": None, "output_tokens": None})
+        # `typesafe_sdk.SystemOneResponse` requires a usage object even though
+        # both of its counts are optional, and its `choices`, `nouls` and
+        # `scores` accessors are derived from `answers`. Without this the SDK
+        # rejects the reply and every client written against it fails at
+        # validation rather than at the decision.
+        body.setdefault("usage", {"input_tokens": None, "output_tokens": None})
         body["latency_ms"] = round(ms, 2)
         if not self.quiet:
             got = " ".join(

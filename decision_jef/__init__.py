@@ -16,14 +16,23 @@
         },
     )
 """
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 from decision_jef import email
 from decision_jef.infer import Decider
 from decision_jef.shortlist import (DEFAULT_K, narrow, rank_options,
                                     shortlist_decide)
-from decision_jef.serve import serve
 from decision_jef.wire import Answer, Question, Request, as_instructions
+
+# `serve` is deliberately not imported here. It pulls in http.server for every
+# caller that only wants to decide, and importing it eagerly also makes
+# `python -m decision_jef.serve` warn about a double import.
+def __getattr__(name):
+    if name == "serve":
+        from decision_jef.serve import serve as _serve
+        return _serve
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = ["Decider", "Question", "Request", "Answer", "email", "serve",
            "as_instructions",

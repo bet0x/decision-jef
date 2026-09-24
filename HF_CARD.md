@@ -22,10 +22,10 @@ tags:
 <p align="center">
   <a href="https://pypi.org/project/decision-jef/"><img src="https://img.shields.io/pypi/v/decision-jef?logo=pypi&logoColor=white" alt="PyPI version"></a>
   <a href="https://github.com/bet0x/decision-jef"><img src="https://img.shields.io/badge/GitHub-decision--jef-181717?logo=github" alt="Source on GitHub"></a>
-  <img src="https://img.shields.io/badge/typed--decisions-77.30-1f6feb" alt="77.30 on the typed-decisions benchmark">
-  <img src="https://img.shields.io/badge/permuted-77.45-1f6feb" alt="77.45 with the options permuted">
+  <img src="https://img.shields.io/badge/typed--decisions-77.90-1f6feb" alt="77.90 on the typed-decisions benchmark">
+  <img src="https://img.shields.io/badge/permuted-77.55-1f6feb" alt="77.55 with the options permuted">
   <img src="https://img.shields.io/badge/latency-12.0%20ms%20%C2%B7%203%20decisions-2da44e" alt="12.0 ms for three decisions">
-  <img src="https://img.shields.io/badge/ECE-0.010%20raw-2da44e" alt="Expected calibration error 0.010 as shipped">
+  <img src="https://img.shields.io/badge/ECE-0.011%20raw-2da44e" alt="Expected calibration error 0.011 as shipped">
 </p>
 
 # Decision-Jef-0.1
@@ -50,17 +50,16 @@ shipped, with no temperature applied.
 | model | global | choice | noul | score |
 | --- | --- | --- | --- | --- |
 | Decision-1.0-Lex | **78.15** | 74.00 | 84.67 | **76.38** |
-| **Decision-Jef-0.1** | 77.30 | 73.70 | 83.70 | 75.40 |
+| **Decision-Jef-0.1** | 77.90 | **74.80** | 84.20 | 75.50 |
 | Laya Typed Decisions | 76.60 | 73.33 | **85.67** | 72.25 |
 | Jev | 72.70 | not published | not published | not published |
 
-Behind Lex by 0.85 and ahead of Laya by 0.70. `score` at 75.40 is this
-model's best figure relative to the field and its own best to date; `choice`
-and `noul` are behind both published models.
+Behind Lex by 0.25 and ahead of Laya by 1.30, and ahead of both on `choice`.
+`score` at 75.50 is this model's best figure relative to the field.
 
-This release trades 0.60 of benchmark accuracy for something the benchmark
-does not cover at all, and the section on ViZDoom below is that trade
-measured. Read it before comparing this row against the previous release.
+Unlike the previous release, this one gives nothing back on the benchmark
+while adding two out-of-domain capabilities. The sections on ViZDoom and on
+rule teachers below are what changed.
 
 The figures each model publishes do not line up. Lex publishes a per-type
 breakdown and no aggregate metrics; Jev publishes aggregates and no breakdown.
@@ -68,10 +67,10 @@ The tables here say which is which rather than filling the gaps.
 
 | | this model | Laya | Jev |
 | --- | --- | --- | --- |
-| soft accuracy | **0.605** | 0.471 | 0.580 |
-| Brier, summed over classes | **0.102** | 0.061 † | 0.148 |
-| ECE, 10 bins | **0.010** | 0.213 | 0.144 |
-| score MAE | 0.267 | **0.242** | 0.391 |
+| soft accuracy | **0.607** | 0.471 | 0.580 |
+| Brier, summed over classes | **0.109** | 0.061 † | 0.148 |
+| ECE, 10 bins | **0.011** | 0.213 | 0.144 |
+| score MAE | 0.270 | **0.242** | 0.391 |
 | majority class on this set | 0.457 | | |
 | random guess on this set | 0.318 | | |
 
@@ -80,7 +79,7 @@ benchmark whose labels are annotator averages rather than single verdicts.
 
 † Published Brier figures use two conventions. Laya reports 0.061 averaged per
 class and attributes 0.148 to Jev summed over classes, which reads as a 2.4x
-gap and is a unit mismatch. The 0.102 above is summed, the same convention as
+gap and is a unit mismatch. The 0.109 above is summed, the same convention as
 the 0.148, so it is comparable to Jev's figure and **not** to Laya's.
 
 ### Option order
@@ -103,25 +102,22 @@ This one does not:
 
 | | native order | options permuted | change |
 | --- | --- | --- | --- |
-| global | 77.35 | 77.45 | **-0.10** |
-| choice | 73.67 | 74.00 | -0.33 |
-| noul | 83.67 | 83.67 | +0.00 |
-| score | 75.38 | 75.38 | +0.00 |
+| global | 77.90 | 77.55 | **+0.35** |
+| choice | 74.83 | 73.67 | +1.17 |
+| noul | 84.17 | 84.17 | +0.00 |
+| score | 75.50 | 75.50 | +0.00 |
 
 Over 1,800 permutations of the benchmark's `choice` questions, the answer
-changes on **5.5%** of them. Jev is measured at 0.13 and Laya at 0.15 on the
+changes on **3.9%** of them, the lowest this project has measured. Jev is measured at 0.13 and Laya at 0.15 on the
 same kind of check.
 
 This table comes from the permutation harness and the one above from the
-like-for-like harness, which is why the global figures read 77.35 and 77.30.
-The two differ by less than the +/-0.15 of bf16 arithmetic noise reported
-under Limitations; neither is rounded to flatter the other. Permuting the
-options *raises* the score by 0.10, which is what a model with no positional
-prior does on a benchmark that places the gold answer third 39.7% of the time.
+like-for-like harness, and both read 77.90 this time.
+Neither is rounded to flatter the other.
 
 ### Calibration
 
-ECE is **0.010 as shipped**, which is already inside a 0.10 criterion without
+ECE is **0.011 as shipped**, which is already inside a 0.10 criterion without
 any post-hoc correction. Temperature scaling per (type, cardinality) bucket
 ships with the model and is **off by default**. Applying it trades one metric
 for the other:
@@ -130,16 +126,16 @@ for the other:
 
 | | as shipped | with the temperatures |
 | --- | --- | --- |
-| ECE, 10 bins | 0.010 | **0.008** |
-| Brier, summed | **0.102** | 0.107 |
-| score MAE | **0.267** | 0.271 |
-| global accuracy | 77.30 | 77.30 |
+| ECE, 10 bins | 0.011 | **0.013** |
+| Brier, summed | **0.109** | 0.110 |
+| score MAE | **0.270** | 0.274 |
+| global accuracy | 77.90 | 77.90 |
 
 The two disagree because they ask different questions. ECE asks whether stated
 confidence matches hit rate; Brier asks whether the reported distribution
-matches the annotator average. The temperatures barely move anything this time -- ECE 0.010 to 0.008 --
-because the model already ships close to calibrated, and several buckets fit
-at 1.000.
+matches the annotator average. The temperatures no longer help at all: ECE goes from 0.011 to 0.013, so the
+fit is inside its own noise and the model ships calibrated. They are kept for
+callers who want to refit on their own data.
 Accuracy does not move either way, because a per-bucket temperature never
 changes an argmax.
 
@@ -162,8 +158,8 @@ genuine coin flip between them.
 | case | true answer | this model |
 | --- | --- | --- |
 | one department cued | 1.00 | **1.000** |
-| two departments cued | 0.50 | **0.554** |
-| escalation implied by priority | 0.90 | 0.965 |
+| two departments cued | 0.50 | **0.559** |
+| escalation implied by priority | 0.90 | 0.959 |
 | mass on the two cued departments | 1.00 | **1.000** |
 
 The model recovers the true posterior when the state settles the question, puts
@@ -317,9 +313,9 @@ token figure scales with how long your descriptions are.
 | --- | --- | --- |
 | 5 | 0.915 | 0.200 |
 | 10 | 0.825 | 0.100 |
-| 20 | 0.785 | 0.050 |
-| 40 | 0.695 | 0.025 |
-| 65 | 0.625 | 0.015 |
+| 20 | 0.775 | 0.050 |
+| 40 | 0.675 | 0.025 |
+| 65 | 0.645 | 0.015 |
 
 Laya reports 0.425 on a 77-label set and attributes it to an option-text
 budget; Jev is reported at 0.870 and is ahead of this model here. Narrow the
@@ -442,22 +438,23 @@ constant. On 3,210 held-out decisions from that agent's state format, the
 That was not a prompting problem and it did not need a bigger model. It needed
 20,000 situation reports in that exact format -- the same distance and bearing
 bands, the same `wall_directly_ahead` booleans -- with every answer computed
-from the state by a rule the state makes visible. These weights score **99.4%**
+from the state by a rule the state makes visible. These weights score **95.1%**
 on the same held-out set, and the answers are no longer constant:
 
 | question | 0.4.0 | this release |
 | --- | --- | --- |
 | `movement` | 42.3% | **100.0%** |
-| `firing` | 55.0% | **100.0%** |
 | `jump` | 16.2% | **100.0%** |
-| `rotation` | 29.8% | **99.7%** |
-| `macro_goal` | 41.3% | **97.5%** |
-| `target` | 44.3% | **98.6%** |
-| all 3,210 decisions | 37.4% | **99.4%** |
+| `firing` | 55.0% | **99.8%** |
+| `target` | 44.3% | **97.9%** |
+| `rotation` | 29.8% | **95.0%** |
+| `macro_goal` | 41.3% | 79.5% |
+| all 3,210 decisions | 37.4% | **95.1%** |
 
-The cost is 0.60 points of typed-decisions accuracy, 77.90 to 77.30. Whether
-that is worth it depends on whether your states look like the benchmark's
-support tickets or like something else.
+This costs nothing on the benchmark. A Doom-only run reached 99.4%; the 95.1%
+here gives that back in `macro_goal` alone, which asks what the player should
+be doing -- the one question the rest of this checkpoint's training also has
+opinions about.
 
 The lesson generalises past Doom. **A constant answer with high confidence is
 what this model does on a state format it has not seen**, and the calibration
@@ -465,6 +462,40 @@ that gives it ECE 0.010 on the benchmark does not warn you: that `engage` at
 0.81 was confidently wrong. If you are putting it on a new state format,
 measure it against a few dozen cases where you know the answer before trusting
 any of its confidences.
+
+## Rule teachers from four other people's demos
+
+The [stuntd examples](https://github.com/bladedevoff/stuntd/tree/main/examples)
+are four Jev-protocol demos, each with a rule or an oracle as its teacher and
+its own generated data: support triage, banking intent and payment risk, a
+coding agent's command gate, and Snake. They are somebody else's label
+definitions, which makes them a fair test of pointing this model at a new rule
+set.
+
+Measured on states drawn from their own generators on a seed no training run
+used, against their teachers:
+
+| demo | question | options | before | this release |
+| --- | --- | --- | --- | --- |
+| banking | `intent` | 12 | 67.0% | **99.0%** |
+| devtools | `flaky` | 2 | 68.0% | **99.5%** |
+| support | `category` | 5 | 33.5% | **90.0%** |
+| support | `needs_human` | 2 | 77.0% | **87.5%** |
+| support | `urgency` | 3 | 36.5% | **64.2%** |
+| devtools | `command_gate` | 3 | 49.5% | 52.8% |
+| banking | `risk` | 3 | 27.5% | 33.8% |
+| | | | | **75.2% over 2,800** |
+
+Their own head, fitted to that teacher for `support/category`, reports 0.992.
+This model reaches 0.900, which is a different and easier claim: it was given
+3,000 rows of that teacher's labels alongside everything else rather than
+fitted to them.
+
+The two that barely move are the two that are arithmetic rather than
+judgement. `banking/risk` asks for "exactly two points" over risk factors
+listed in the context, and `command_gate` counts the same way. **This model
+does not count.** If your rule is a threshold over a tally, compute the tally
+and put it in the state; do not ask for it.
 
 ## The three question types
 
@@ -511,26 +542,29 @@ field is documented and will carry a value again when a head earns it.
 
 ## Limitations
 
-- **`choice` and `noul` are behind both published models**, 73.70 against
-  74.00 and 73.33, and 83.70 against 84.67 and 85.67. `score` at 75.40 is the
-  one type where this model leads the field's second place.
+- **`noul` is 1.47 behind the best published figure**, 84.20 against 85.67.
+  `choice` at 74.80 leads both published models and `score` at 75.50 leads
+  Laya; the 0.25 global deficit against Lex is `score`.
+- **This model does not count.** Two rule teachers whose labels are a
+  threshold over a tally of factors stay near chance, 33.8% and 52.8%. Compute
+  the tally and put it in the state.
 - **A state format this model has not seen produces a constant answer with
   high confidence**, and the ECE of 0.010 does not warn you, because it is an
   in-distribution figure. See the ViZDoom section. Measure before you trust a
   confidence on new inputs.
 - **Large option sets degrade steadily**, against a random baseline of 0.050
   and 0.015 respectively. Jev is reported at
-  0.870 at sixty-five and is ahead here. 0.785 at twenty and 0.625 at
+  0.870 at sixty-five and is ahead here. 0.775 at twenty and 0.645 at
   sixty-five here. Narrow the list above twenty; the
   model's own logits rank well enough to do it, at 0.960 recall@16 out of fifty
   options, even where its argmax is already unreliable.
 - **A yes/no without meaningful outcome descriptions loses 17.7 points**, 83.83
   against 66.17, and a description templated from the question is worse than
   none at all, 65.33. Write what each outcome means.
-- **The shipped temperatures barely change anything and are off by default.**
-  ECE 0.010 to 0.008, Brier 0.102 to 0.107.
+- **The shipped temperatures no longer help** and are off by default: ECE
+  0.011 to 0.013. Refit them on your own data if you need them.
 - **No escalation head**, see above.
-- **Option order still changes the answer on 5.7% of `choice` questions.** That
+- **Option order still changes the answer on 3.9% of `choice` questions.** That
   is ahead of both published figures but it is not zero.
 - Trained and measured on **English** typed decisions. The backbone is
   multilingual and the tokenizer covers 256k tokens, but no non-English
@@ -538,7 +572,7 @@ field is documented and will carry a value again when a head earns it.
 - The `guardrails` and `moderation` tags reflect coverage of toxicity and
   hate-speech decisions. **Neither capability has been benchmarked.**
 - Reported global figures carry about ±0.15 of bf16 arithmetic noise. The
-  77.30 above is a single measurement, not a mean over seeds.
+  77.90 above is a single measurement, not a mean over seeds.
 - Long states are truncated to the window with the questions reserved first.
 
 ## License and provenance
